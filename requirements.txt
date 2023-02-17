@@ -1,0 +1,3 @@
+tqdm
+jupyter
+pytorch=1.13

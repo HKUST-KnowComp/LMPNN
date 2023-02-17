@@ -1,0 +1,14 @@
+.vscode
+.idea
+**/__pycache__
+**/.ipynb_checkpoints
+data
+log
+results
+pretrain
+kbc
+
+BATCH.md
+run_batch.sh
+run_rsync.sh
+.rsyncignore

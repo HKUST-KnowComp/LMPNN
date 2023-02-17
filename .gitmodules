@@ -1,0 +1,6 @@
+[submodule "ssl-relation-prediction"]
+	path = ssl-relation-prediction
+	url = https://github.com/facebookresearch/ssl-relation-prediction
+[submodule "kge"]
+	path = kge
+	url = https://github.com/uma-pi1/kge
