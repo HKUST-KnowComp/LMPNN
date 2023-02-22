@@ -2,11 +2,13 @@
 .idea
 **/__pycache__
 **/.ipynb_checkpoints
+.DS_Store
 data
 log
 results
 pretrain
 kbc
+TODO
 
 BATCH.md
 run_batch.sh

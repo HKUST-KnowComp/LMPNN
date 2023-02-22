@@ -12,7 +12,7 @@ Term = e[number]
      = f[number]
 """
 
-from .fof import Conjunction, Disjunction, Formula, Lobject, Negation, BinaryPredicate, Term
+from .foq import Conjunction, Disjunction, Formula, Lobject, Negation, Atomic, Term
 
 
 def remove_outmost_backets(lstr: str):
@@ -68,6 +68,22 @@ def parse_term(term_name):
     return term
 
 
+def identify_top_binary_operator(lstr: str):
+    """
+    identify the top-level binary operator
+    """
+    _lstr = remove_brackets(lstr)
+    bracket_stack = []
+    for i, c in enumerate(_lstr):
+        if c == '(':
+            bracket_stack.append(i)
+        elif c == ')':
+            bracket_stack.pop(-1)
+        elif c in "&|" and len(bracket_stack) == 0:
+            return c, i
+    return None, -1
+
+
 def parse_lstr_to_lformula(lstr: str) -> Formula:
     """
     parse the string a.k.a, lstr to lobject
@@ -75,19 +91,14 @@ def parse_lstr_to_lformula(lstr: str) -> Formula:
     _lstr = remove_brackets(lstr)
 
     # identify top-level operator
-    if lstr[0] == '!':
+    if _lstr[0] == '!':
         sub_lstr = _lstr[1:]
         sub_formula = parse_lstr_to_lformula(sub_lstr)
         if sub_formula.op == 'pred':
-            sub_formula.skolem_negation = True
+            sub_formula.negated = True
         return Negation(formula=sub_formula)
 
-    binary_operator_index = -1
-    binary_operator = ""
-    for i, c in enumerate(_lstr):
-        if c in "&|":
-            binary_operator_index = i
-            binary_operator = c
+    binary_operator, binary_operator_index = identify_top_binary_operator(_lstr)
 
     if binary_operator_index >= 0:
         left_lstr = _lstr[:binary_operator_index]
@@ -98,7 +109,6 @@ def parse_lstr_to_lformula(lstr: str) -> Formula:
             return Conjunction(formulas=[left_formula, right_formula])
         if binary_operator == '|':
             return Disjunction(formulas=[left_formula, right_formula])
-
     else:  # parse predicate
         assert _lstr[-1] == ')'
         predicate_name, right_lstr = _lstr.split('(')
@@ -109,13 +119,12 @@ def parse_lstr_to_lformula(lstr: str) -> Formula:
         term2 = parse_term(term2_name)
         if predicate_name.isnumeric():
             predicate_id = int(predicate_name)
-            predicate = BinaryPredicate(name="predicate_by_id",
+            predicate = Atomic(relation=f"predicate_id={predicate_id}",
                                         head=term1,
                                         tail=term2)
             predicate.relation_id_list.append(predicate_id)
         else:
-            predicate = BinaryPredicate(name=predicate_name,
+            predicate = Atomic(relation=predicate_name,
                                         head=term1,
                                         tail=term2)
-
         return predicate
