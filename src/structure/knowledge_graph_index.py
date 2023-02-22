@@ -65,3 +65,18 @@ class KGIndex:
     @property
     def num_relations(self):
         return len(self.map_relation_name_to_id)
+
+    def dump_id2name(self, entity_id_file="", relation_id_file="", rel_dup=False):
+        if entity_id_file:
+            with open(entity_id_file, 'wt') as f:
+                for eid, name in self.inverse_entity_id_to_name.items():
+                    f.write(f"{eid}\t{name}\n")
+
+        if relation_id_file:
+            with open(relation_id_file, 'wt') as f:
+                for rid, name in self.inverse_relation_id_to_name.items():
+                    if (not rel_dup) and (rid % 2 == 1):
+                        continue
+                    else:
+                        rid = rid // 2
+                        f.write(f"{rid}\t{name}\n")

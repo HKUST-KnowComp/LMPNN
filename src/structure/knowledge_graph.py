@@ -105,6 +105,19 @@ class KnowledgeGraph:
             for h, r, t in self.triples:
                 f.write(f"{h}\t{r}\t{t}\n")
 
+    def dump_without_betae_type_reciprocal_relation(self, filename):
+        with open(filename, 'wt') as f:
+            for h, r, t in self.triples:
+                # identify duplication
+                if r % 2 == 1:
+                    continue
+                _r = r // 2
+                f.write(f"{h}\t{_r}\t{t}\n")
+
+    @property
+    def num_triples(self):
+        return len(self.triples)
+
     @classmethod
     def from_config(cls, config: KnowledgeGraphConfig):
         return cls.create(triple_files=config.filelist,

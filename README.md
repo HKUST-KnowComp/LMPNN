@@ -2,12 +2,14 @@
 
 Codes for ICLR 2023 paper Logical Message Passing Networks with One-hop Inference on Atomic Formula, see the [arXiv version](https://arxiv.org/abs/2301.08859) and the [OpenReview version](https://openreview.net/forum?id=SoyOsp7i_l).
 
+In this documentation, we demonstrate to run the code on FB15k-237
+
 ## Requirement
 - pytorch
 - jupyter
 - tqdm
 
-## Dataset
+## Prepare the dataset
 
 Please download the dataset from [snap-stanford/KGReasoning](https://github.com/snap-stanford/KGReasoning)
 
@@ -29,7 +31,7 @@ KG_data.zip
 NELL-betae
 NELL-q2b
 ```
-We rearange them into different subfolders
+Then, we rearange them into different subfolders
 ```
 mkdir betae-dataset
 mv *betae betae-dataset
@@ -57,9 +59,9 @@ where
 
 ## Pretrain KGE checkpoints with external submodules
 
-We consider two different repositories to pretrain the checkpoints.
+We consider two different repositories to pretrain the KGE checkpoints.
 Including
-1. [uma-pi1/kge](https://github.com/HKUST-KnowComp/LMPNN)
+1. [uma-pi1/kge](https://github.com/uma-pi1/kge)
 2. [facebookresearch/ssl-relation-prediction](https://github.com/facebookresearch/ssl-relation-prediction)
 
 To initialize these modules, please run
@@ -68,12 +70,36 @@ git submodule update
 ```
 
 How to train the checkpoints with these submodules is discussed in this section.
-Generally, there are three steps:
-1. Convert the KG triples into the format that can be used in each submodule
-2. Train the checkpoints
-3. Convert the obtained checkpoints into the format that can be used in LMPNN
 
-### Example usage of [uma-pi1/kge](https://github.com/HKUST-KnowComp/LMPNN)
+Generally, there are three steps:
+1. Convert the KG triples into the format that can be used in each submodule.
+2. Train the checkpoints.
+3. Convert the obtained checkpoints into the format that can be used in LMPNN.
+
+In this part, we provide examples on training ComplEx embeddings at FB15k-237, other KGs can be reproduced accordingly.
+
+### Example usage of [uma-pi1/kge](https://github.com/uma-pi1/kge)
+
+#### Step 0: Prepare the environment and config
+
+To run `libkge` submodule, one need editable installation.
+
+```bash
+cd kge
+pip install -e .
+```
+
+Then download the configs
+
+```
+cd kge/data
+sh download_all.sh
+
+mkdir -p config/kge
+wget http://web.informatik.uni-mannheim.de/pi1/iclr2020-models/fb15k-237-complex.yaml -o config/kge/fb15k-237-complex.yaml
+```
+
+#### Step 1: Prepare the dataset
 
 1. Run the script to convert the knowledge graph triples.
 2. Run kge with the customized config.
