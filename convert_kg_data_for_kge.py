@@ -42,9 +42,15 @@ def convert(name):
     kgidx.dump_id2name(entity_id_file=os.path.join(output_folder, name, "entity_ids.del"),
                     relation_id_file=os.path.join(output_folder, name, "relation_ids.del"),
                     rel_dup=False)
-    train_kg.dump_without_betae_type_reciprocal_relation(os.path.join(output_folder, name, "train.tsv"))
-    valid_kg.dump_without_betae_type_reciprocal_relation(os.path.join(output_folder, name, "valid.tsv"))
-    test_kg.dump_without_betae_type_reciprocal_relation( os.path.join(output_folder, name, "test.tsv"))
+    train_kg.dump_triples_without_betae_type_reciprocal_relation(
+        os.path.join(output_folder, name, "train.tsv"),
+        exclusion=[])
+    valid_kg.dump_triples_without_betae_type_reciprocal_relation(
+        os.path.join(output_folder, name, "valid.tsv"),
+        exclusion=train_kg.triples)
+    test_kg.dump_triples_without_betae_type_reciprocal_relation(
+        os.path.join(output_folder, name, "test.tsv"),
+        exclusion=valid_kg.triples)
     f = open(os.path.join(output_folder, name, "valid.del"), "wt")
     f.close()
     with open(os.path.join(output_folder, name, "dataset.yaml"), "wt") as f:

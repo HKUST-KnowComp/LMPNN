@@ -1,19 +1,20 @@
 # Logical Message Passing Networks with One-hop Inference on Atomic Formula
 
-Codes for ICLR 2023 paper Logical Message Passing Networks with One-hop Inference on Atomic Formula, see the [arXiv version](https://arxiv.org/abs/2301.08859) and the [OpenReview version](https://openreview.net/forum?id=SoyOsp7i_l).
+Implementation for ICLR 2023 paper, Logical Message Passing Networks with One-hop Inference on Atomic Formula, see the [arXiv version](https://arxiv.org/abs/2301.08859) and the [OpenReview version](https://openreview.net/forum?id=SoyOsp7i_l).
 
-In this documentation, we demonstrate to run the code on FB15k-237
+In this documentation, we demonstrate ways to run LMPNN experiments on FB15k-237 knowledge graph with ComplEx. Experiments on different KGs, different KGEs, and different checkpoints can be produced similarly.
 
-## Requirement
+## Requirement of this repo
 - pytorch
 - jupyter
 - tqdm
 
+Requirement of other submodules will be discussed accordingly.
+
 ## Prepare the dataset
+Please download the dataset from [snap-stanford/KGReasoning](https://github.com/snap-stanford/KGReasoning).
 
-Please download the dataset from [snap-stanford/KGReasoning](https://github.com/snap-stanford/KGReasoning)
-
-Specifically,
+Specifically, one can run:
 ```bash
 mkdir data
 cd data
@@ -21,7 +22,7 @@ wget http://snap.stanford.edu/betae/KG_data.zip # a zip file of 1.3G
 unzip KG_data.zip
 ```
 
-Then the `data` folder will contain the following folders
+Then the `data` folder will contain the following folders and files:
 ```
 FB15k-237-betae
 FB15k-237-q2b
@@ -31,7 +32,8 @@ KG_data.zip
 NELL-betae
 NELL-q2b
 ```
-Then, we rearange them into different subfolders
+
+We rearange them into different subfolders:
 ```
 mkdir betae-dataset
 mv *betae betae-dataset
@@ -39,7 +41,7 @@ mkdir q2b-dataset
 mv *q2b q2b-dataset
 ```
 
-Then we run `convert_beta_dataset.py` to convert the data into the graph forms
+Finally, run `convert_beta_dataset.py` to convert the data into the graph forms for LMPNN. One can find the new dataset folders in `./data`.
 
 An example converted dataset format is
 ```
@@ -71,14 +73,12 @@ git submodule update
 
 How to train the checkpoints with these submodules is discussed in this section.
 
-Generally, there are three steps:
+Generally, there are two steps:
 1. Convert the KG triples into the format that can be used in each submodule.
 2. Train the checkpoints.
-3. Convert the obtained checkpoints into the format that can be used in LMPNN.
 
-In this part, we provide examples on training ComplEx embeddings at FB15k-237, other KGs can be reproduced accordingly.
 
-### Example usage of [uma-pi1/kge](https://github.com/uma-pi1/kge)
+### Choice 1: Pretrain with [uma-pi1/kge](https://github.com/uma-pi1/kge)
 
 #### Step 0: Prepare the environment and config
 
@@ -89,39 +89,85 @@ cd kge
 pip install -e .
 ```
 
-Then download the configs
+#### Step 1: Prepare the dataset
 
+Running the following code to convert BetaE dataset into `./kge/data`.
+
+```sh
+python convert_kg_data_for_kge.py
 ```
-cd kge/data
-sh download_all.sh
 
-mkdir -p config/kge
-wget http://web.informatik.uni-mannheim.de/pi1/iclr2020-models/fb15k-237-complex.yaml -o config/kge/fb15k-237-complex.yaml
+#### Step 2: Train the checkpoint
+
+We provide a config in `config/kge/fb15k-237-complex.yaml`. Tailor the config to train checkpoints with `libkge`.
+```sh
+kge start config/kge/fb15k-237-complex.yaml --job.device cuda:0
+```
+
+The obtained checkpoints can be found at `kge/local`.
+
+
+### Choice 2: Pretrain with [facebookresearch/ssl-relation-prediction](https://github.com/facebookresearch/ssl-relation-prediction)
+
+
+#### Step 0: Prepare the environment
+```
+pip install ogb networkx wandb
 ```
 
 #### Step 1: Prepare the dataset
 
-1. Run the script to convert the knowledge graph triples.
-2. Run kge with the customized config.
-3. Convert KGE checkpoints back into the.
+Running the following code to convert BetaE dataset into `./ssl-relation-prediction/data`.
 
-### Example usage of [facebookresearch/ssl-relation-prediction](https://github.com/facebookresearch/ssl-relation-prediction)
+```sh
+python convert_kg_data_for_ssl.py
+```
 
-1. Run the script to convert the knowledge graph triples.
-2. Run kge with the customized config.
-3. Convert KGE checkpoints back into the.
+Notably, in the `ssl-relation-prediction/src/main.py` file, the command arg parser prohibits external sources of datasets in line 47-50.
+```python
+parser.add_argument(
+    '--dataset', choices=datasets,
+    help="Dataset in {}".format(datasets)
+)
+```
+
+Let's change it into
+```python
+parser.add_argument(
+    '--dataset'
+)
+```
+
+#### Step 2: Train the checkpoint
+The training process can be initialized by running
+```sh
+cd ssl-relation-prediction
+python src/main.py --dataset FB15k-237-betae \
+               --score_rel True \
+               --model ComplEx \
+               --rank 1000 \
+               --learning_rate 0.1 \
+               --batch_size 1000 \
+               --lmbda 0.05 \
+               --w_rel 4 \
+               --max_epochs 100 \
+               --model_cache_path ./ckpts/FB15k-237-complex/
+```
+
+The obtained checkpoints can be found at `ssl-relation-prediction/ckpts/FB15k-237-complex`.
 
 ## Train LMPNN
 
 Sample usage
 
 ```bash
-python lifted_embedding_estimation_with_truth_value.py \
+python train_lmpnn.py \
   --task_folder data/FB15k-237-betae \
   --checkpoint_path pretrain/complex/FB15k-model-rank-1000-epoch-100-1602520745.pt
   --embedding_dim 1000 \
   --device cuda:0 \
   --output_dir log/fb15k/pretrain_complex1000-default \
+  --checkpoint_path
 ```
 
 ## Citing this paper
