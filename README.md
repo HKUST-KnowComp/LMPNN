@@ -156,6 +156,35 @@ python src/main.py --dataset FB15k-237-betae \
 
 The obtained checkpoints can be found at `ssl-relation-prediction/ckpts/FB15k-237-complex`.
 
+## Convert pretrained KGE checkpoints into the format for the usage of LMPNN
+
+We convert external KGE checkpoints into the format that can be loaded by LMPNN. We consider three sources of external checkpoints
+
+1. Checkpoints released by [uclnlp/cqd](https://github.com/uclnlp/cqd).
+2. Checkpoints released / pretrained by [uma-pi1/kge](https://github.com/uma-pi1/kge)
+2. Checkpoints released by [facebookresearch/ssl-relation-prediction](https://github.com/facebookresearch/ssl-relation-prediction)
+
+
+The pretrained checkpoints are managed in the folder `pretrain`.
+```sh
+mkdir pretrain
+```
+
+### Sources 1. [uclnlp/cqd](https://github.com/uclnlp/cqd)
+
+This source of checkpoints is used to repreduced the results shown in the paper.
+
+```bash
+cd pretrain
+wget http://data.neuralnoise.com/cqd-models.tgz # a .tgz file of 4.8G
+tar xvf cqd-models.tgz
+mv models raw_cqd_pretrain_models
+```
+
+Then we can convert the checkpoints into the format used in this repo.
+
+
+
 ## Train LMPNN
 
 Sample usage
@@ -163,11 +192,10 @@ Sample usage
 ```bash
 python train_lmpnn.py \
   --task_folder data/FB15k-237-betae \
-  --checkpoint_path pretrain/complex/FB15k-model-rank-1000-epoch-100-1602520745.pt
+  --checkpoint_path pretrain/cqd/FB15k-237-model-rank-1000-epoch-100-1602508358.pt \
   --embedding_dim 1000 \
   --device cuda:0 \
-  --output_dir log/fb15k/pretrain_complex1000-default \
-  --checkpoint_path
+  --output_dir log/fb15k-237/pretrain_complex1000-default
 ```
 
 ## Citing this paper

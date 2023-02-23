@@ -1,19 +1,27 @@
 import os
 import torch
 from src.structure.knowledge_graph_index import KGIndex
-from src.structure.neural_binary_predicate import ComplEx
+from src.structure.nbp_complex import ComplEx
+
+import sys
+sys.path.append('cqd')
 
 kgs = ['FB15k-237', 'FB15k', 'NELL']
 
 if __name__ == "__main__":
 
+    os.makedirs('pretrain/cqd', exist_ok=True)
+
     for kgname in kgs:
 
         kgidx = KGIndex.load(os.path.join('data', kgname + '-betae', 'kgindex.json'))
 
-        for par, dirs, files in os.walk('pretrain/models'):
+        for par, dirs, files in os.walk('pretrain/raw_cqd_pretrain_models'):
             for fname in files:
                 if fname.endswith('.pt') and fname.startswith(kgname):
+
+                    print("converting " + fname)
+
                     # the desired objective
                     terms = fname.split('-')
                     rank = None
@@ -35,6 +43,4 @@ if __name__ == "__main__":
                     my_model._entity_embedding.weight.data = state_dict['model_state_dict']['embeddings.0.weight']
                     my_model._relation_embedding.weight.data = state_dict['model_state_dict']['embeddings.1.weight']
 
-                    torch.save(my_model.state_dict(), os.path.join('pretrain', 'complex', fname))
-
-                    pass
+                    torch.save(my_model.state_dict(), os.path.join('pretrain', 'cqd', fname))

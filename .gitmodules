@@ -4,3 +4,6 @@
 [submodule "kge"]
 	path = kge
 	url = https://github.com/uma-pi1/kge
+[submodule "cqd"]
+	path = cqd
+	url = https://github.com/uclnlp/cqd
