@@ -2,9 +2,10 @@
 
 Implementation for ICLR 2023 paper, Logical Message Passing Networks with One-hop Inference on Atomic Formula, see the [arXiv version](https://arxiv.org/abs/2301.08859) and the [OpenReview version](https://openreview.net/forum?id=SoyOsp7i_l).
 
-In this documentation, we demonstrate ways to run LMPNN experiments on FB15k-237 knowledge graph with ComplEx. Experiments on different KGs, different KGEs, and different checkpoints can be produced similarly.
+In this documentation, we detail how to reproduce the results in the paper which is based on existing checkpoints released by other researchers.
+We also introduce several ways to train KGE checkpoints with released repository, which can be backbones for LMPNN.
 
-## Requirement of this repo
+## Requirement of this repository
 - pytorch
 - jupyter
 - tqdm
