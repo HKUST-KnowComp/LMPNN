@@ -68,6 +68,22 @@ def parse_term(term_name):
     return term
 
 
+def identify_top_binary_operator(lstr: str) -> (str, int):
+    """
+    identify the top-level binary operator
+    """
+    _lstr = remove_brackets(lstr)
+    bracket_stack = []
+    for i, c in enumerate(_lstr):
+        if c == '(':
+            bracket_stack.append(i)
+        elif c == ')':
+            bracket_stack.pop(-1)
+        elif c in "&|" and len(bracket_stack) == 0:
+            return c, i
+    return None, -1
+
+
 def parse_lstr_to_lformula(lstr: str) -> Formula:
     """
     parse the string a.k.a, lstr to lobject
@@ -82,12 +98,7 @@ def parse_lstr_to_lformula(lstr: str) -> Formula:
             sub_formula.skolem_negation = True
         return Negation(formula=sub_formula)
 
-    binary_operator_index = -1
-    binary_operator = ""
-    for i, c in enumerate(_lstr):
-        if c in "&|":
-            binary_operator_index = i
-            binary_operator = c
+    binary_operator, binary_operator_index = identify_top_binary_operator(_lstr)
 
     if binary_operator_index >= 0:
         left_lstr = _lstr[:binary_operator_index]
@@ -98,7 +109,6 @@ def parse_lstr_to_lformula(lstr: str) -> Formula:
             return Conjunction(formulas=[left_formula, right_formula])
         if binary_operator == '|':
             return Disjunction(formulas=[left_formula, right_formula])
-
     else:  # parse predicate
         assert _lstr[-1] == ')'
         predicate_name, right_lstr = _lstr.split('(')
@@ -117,5 +127,4 @@ def parse_lstr_to_lformula(lstr: str) -> Formula:
             predicate = BinaryPredicate(name=predicate_name,
                                         head=term1,
                                         tail=term2)
-
         return predicate

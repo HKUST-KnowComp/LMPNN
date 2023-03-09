@@ -27,7 +27,9 @@ beta_types_key_list = [
     (('e', ('r',)), ('e', ('r',)), ('u',)),
     ((('e', ('r',)), ('e', ('r',)), ('u',)), ('r',)),
     ((('e', ('r', 'n')), ('e', ('r', 'n'))), ('n',)),
-    ((('e', ('r', 'n')), ('e', ('r', 'n'))), ('n', 'r'))]
+    ((('e', ('r', 'n')), ('e', ('r', 'n'))), ('n', 'r')),
+    ((('e', ('r',)), ('e', ('r',)), ('u',)), ('r',))
+    ]
 
 labeled_beta_types_list = [
     ('s1', ('r1',)),
@@ -45,7 +47,8 @@ labeled_beta_types_list = [
     (('s1', ('r1',)), ('s2', ('r2',)), ('u',)),
     ((('s1', ('r1',)), ('s2', ('r2',)), ('u',)), ('r3',)),
     ((('s1', ('r1', 'n')), ('s2', ('r2', 'n'))), ('n',)),
-    ((('s1', ('r1', 'n')), ('s2', ('r2', 'n'))), ('n', 'r3'))
+    ((('s1', ('r1', 'n')), ('s2', ('r2', 'n'))), ('n', 'r3')),
+    ((('s1', ('r1',)), ('s2', ('r2',)), ('u',)), ('r3',))
     ]
 
 beta_lstr_list = [
@@ -63,16 +66,18 @@ beta_lstr_list = [
     "r1(s1,e1)&!r2(e1,f)&r3(s2,f)", # pni
     "r1(s1,f)|r2(s2,f)", # 2u
     "(r1(s1,e1)|r2(s2,e1))&r3(e1,f)", # up
-    "!(!r1(s1,f)&!r2(s2,f))", # 2u-dnf
-    "!(!r1(s1,e1)|r2(s2,e1))&r3(e1,f)",# up-dnf
+    "!(!r1(s1,f)&!r2(s2,f))", # 2u-dm
+    "!(!r1(s1,e1)&!r2(s2,e1))&r3(e1,f)",# up-dm
+    "(r1(s1,e1)&r3(e1,f))|(r2(s2,e1)&r3(e1,f))" # up-dnf
 ]
 
 beta_names = [
-    '1p', '2p', '3p', '2i', '3i', 'ip', 'pi', '2in', '3in', 'inp', 'pin', 'pni', '2u', 'up', '2u-dnf', 'up-dnf'
+    '1p', '2p', '3p', '2i', '3i', 'ip', 'pi', '2in', '3in', 'inp', 'pin', 'pni', '2u', 'up', '2u-dm', 'up-dm', 'up-dnf'
 ]
 
 beta_lstr2name = {}
 for s, n in zip(beta_lstr_list, beta_names):
+    print(s, n)
     beta_lstr2name[
         parse_lstr_to_lformula(s).lstr()
     ] = n
