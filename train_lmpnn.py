@@ -29,44 +29,10 @@ from src.utils.data import QueryAnsweringSeqDataLoader
 
 torch.autograd.set_detect_anomaly(True)
 
-lstr2name = {
-    'r1(s1,f)': '1p',
-    '(r1(s1,e1))&(r2(e1,f))': '2p',
-    '((r1(s1,e1))&(r2(e1,e2)))&(r3(e2,f))': '3p',
-    '(r1(s1,f))&(r2(s2,f))': '2i',
-    '((r1(s1,f))&(r2(s2,f)))&(r3(s3,f))': '3i',
-    '((r1(s1,e1))&(r2(s2,e1)))&(r3(e1,f))': 'ip',
-    '((r1(s1,e1))&(r2(e1,f)))&(r3(s2,f))': 'pi',
-    '(r1(s1,f))&(!(r2(s2,f)))': '2in',
-    '((r1(s1,f))&(r2(s2,f)))&(!(r3(s3,f)))': '3in',
-    '((r1(s1,e1))&(!(r2(s2,e1))))&(r3(e1,f))': 'inp',
-    '((r1(s1,e1))&(r2(e1,f)))&(!(r3(s2,f)))': 'pin',
-    '((r1(s1,e1))&(!(r2(e1,f))))&(r3(s2,f))': 'pni',
-    '(r1(s1,f))|(r2(s2,f))': '2u',
-    '((r1(s1,e1))|(r2(s2,e1)))&(r3(e1,f))': 'up',
-    '!((!(r1(s1,f)))&(!(r2(s2,f))))': '2u-dm',
-    '!(((!(r1(s1,e1)))|(r2(s2,e1)))&(r3(e1,f)))': 'up-dm'
-}
+from convert_beta_dataset import beta_lstr2name
 
-name2lstr = {
-    "1p": "r1(s1,f)",
-    "2p": "r1(s1,e1)&r2(e1,f)",  # 2p
-    "3p": "r1(s1,e1)&r2(e1,e2)&r3(e2,f)",  # 3p
-    "2i": "r1(s1,f)&r2(s2,f)",  # 2i
-    "3i": "r1(s1,f)&r2(s2,f)&r3(s3,f)",  # 3i
-    "ip": "r1(s1,e1)&r2(s2,e1)&r3(e1,f)",  # ip
-    "pi": "r1(s1,e1)&r2(e1,f)&r3(s2,f)",  # pi
-    "2in": "r1(s1,f)&!r2(s2,f)",  # 2in
-    "3in": "r1(s1,f)&r2(s2,f)&!r3(s3,f)",  # 3in
-    "inp": "r1(s1,e1)&!r2(s2,e1)&r3(e1,f)",  # inp
-    "pin": "r1(s1,e1)&r2(e1,f)&!r3(s2,f)",  # pin
-    "pni": "r1(s1,e1)&!r2(e1,f)&r3(s2,f)",  # pni
-    "2u": "r1(s1,f)|r2(s2,f)",  # 2u
-    "up": "(r1(s1,e1)|r2(s2,e1))&r3(e1,f)",  # up
-    "2u-dm": "!(!r1(s1,f)&!r2(s2,f))",  # 2u-dm
-    "up-dm": "!(!r1(s1,e1)|r2(s2,e1))&r3(e1,f)",  # up-dm
-}
-
+lstr2name = beta_lstr2name
+name2lstr = {v: k for k, v in lstr2name.items()}
 
 negation_query = [
     "r1(s1,f)&!r2(s2,f)",  # 2in
@@ -725,19 +691,16 @@ if __name__ == "__main__":
         zero_reasoner = GNNEFOReasonerComplEx(nbp, tnorm, zero_lmpnn)
         train_dataloader_1p = QueryAnsweringSeqDataLoader(
             osp.join(args.task_folder, 'train-qaa.json'),
-            target_lstr=["r1(s1,f)"],
             batch_size=args.batch_size,
             shuffle=True,
             num_workers=0)
         valid_dataloader_1p = QueryAnsweringSeqDataLoader(
             osp.join(args.task_folder, 'valid-qaa.json'),
-            target_lstr=["r1(s1,f)"],
             batch_size=args.batch_size_eval_dataloader,
             shuffle=False,
             num_workers=0)
         test_dataloader_1p = QueryAnsweringSeqDataLoader(
             osp.join(args.task_folder, 'test-qaa.json'),
-            target_lstr=["r1(s1,f)"],
             batch_size=args.batch_size_eval_dataloader,
             shuffle=False,
             num_workers=0)
@@ -767,8 +730,8 @@ if __name__ == "__main__":
     if args.epoch > 0:
         train_dataloader = QueryAnsweringSeqDataLoader(
             osp.join(args.task_folder, 'train-qaa.json'),
-            # size_limit=args.batch_size * 1,
-            target_lstr=train_queries,
+            size_limit=args.batch_size * 1,
+            # target_lstr=train_queries,
             batch_size=args.batch_size,
             shuffle=True,
             num_workers=0)
@@ -790,3 +753,20 @@ if __name__ == "__main__":
                                         f'lmpnn-{e+1}.ckpt')
                 torch.save(lgnn_layer.state_dict(), save_name)
                 logging.info(f"lmpnn at epoch {e+1} is saved to {save_name}")
+
+    train_lifted_estimator_v2(f"epoch {e}",
+                                train_dataloader, nbp, reasoner, optimizer_estimator, args)
+    scheduler.step()
+    if (e+1) % 5 == 0:
+        evaluate_by_nearest_search(e, f"NN evaluate validate set epoch {e+1}",
+                                    valid_dataloader, nbp, reasoner)
+        evaluate_by_nearest_search(e, f"NN evaluate test set epoch {e+1}",
+                                    test_dataloader, nbp, reasoner)
+        last_name = os.path.join(args.checkpoint_dir,
+                                f'lmpnn-last.ckpt')
+        torch.save(lgnn_layer.state_dict(), last_name)
+    if (e+1) % 20 == 0:
+        save_name = os.path.join(args.checkpoint_dir,
+                                f'lmpnn-{e+1}.ckpt')
+        torch.save(lgnn_layer.state_dict(), save_name)
+        logging.info(f"lmpnn at epoch {e+1} is saved to {save_name}")

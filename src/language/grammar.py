@@ -68,7 +68,7 @@ def parse_term(term_name):
     return term
 
 
-def identify_top_binary_operator(lstr: str) -> (str, int):
+def identify_top_binary_operator(lstr: str):
     """
     identify the top-level binary operator
     """
