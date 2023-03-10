@@ -12,6 +12,9 @@ We also introduce several ways to train KGE checkpoints with released repository
 
 Requirement of other submodules will be discussed accordingly.
 
+## Version
+** This repo is under construction for usability. The key results for the paper can already be reproduced.  **
+
 ## Prepare the dataset
 Please download the dataset from [snap-stanford/KGReasoning](https://github.com/snap-stanford/KGReasoning).
 
