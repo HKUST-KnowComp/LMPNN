@@ -9,18 +9,12 @@ from pprint import pprint
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 import tqdm
-from torch import nn
 
 from src.language.tnorm import GodelTNorm, ProductTNorm, Tnorm
-from src.pipeline.reasoning_machine import (DeepsetEFOReasoner,
-                                            GradientEFOReasoner, Reasoner,
-                                            GNNEFOReasonerComplEx,
-                                            RelationalDeepSet,
-                                            VanillaGNNLayerComplEx,
-                                            LogicalGNNLayerComplEx,
-                                            LogicalGNNLayer, GNNEFOReasoner)
+from src.pipeline.reasoning_machine import (GNNEFOReasoner,
+                                            GradientEFOReasoner,
+                                            LogicalGNNLayer, Reasoner)
 from src.structure import get_nbp_class
 from src.structure.knowledge_graph import KnowledgeGraph
 from src.structure.knowledge_graph_index import KGIndex
@@ -110,199 +104,7 @@ parser.add_argument("--score", type=str, default='cos', choices=['cos', 'dist'])
 parser.add_argument("--gamma", type=float, default=9)
 
 
-def train_neural_binary_predicate(
-        desc: str,
-        train_dataloader: QueryAnsweringSeqDataLoader,
-        nbp: NeuralBinaryPredicate,
-        reasoner: Reasoner,
-        optimizer: torch.optim.Optimizer,
-        args):
-
-    trajectory = defaultdict(list)
-
-    fof_list = train_dataloader.get_fof_list()
-    t = tqdm.tqdm(enumerate(fof_list), desc=desc, total=len(fof_list))
-
-    # for each batch
-    for ifof, fof in t:
-        if fof.lstr != 'r1(s1,f)':
-            continue
-        ####################
-        loss = 0
-        metric_step = {}
-
-        reasoner.initialize_with_formula(fof)
-        reasoner.initialize_local_embedding()
-
-        pos_1answer_list = []
-        neg_answers_list = []
-
-        for i, pos_answer_dict in enumerate(fof.easy_answer_list):
-            # this iteration is somehow redundant since there is only one free
-            # variable in current case, i.e., fname='f'
-            assert 'f' in pos_answer_dict
-            pos_1answer_list.append(random.choice(pos_answer_dict['f']))
-            neg_answers_list.append(torch.randint(0, nbp.num_entities,
-                                                  (args.noisy_sample_size, 1)))
-
-        batch_pos_emb = nbp.get_entity_emb(pos_1answer_list)
-        batch_neg_emb = nbp.get_entity_emb(
-            torch.cat(neg_answers_list, dim=1))
-
-        pos_tv = reasoner.evaluate_truth_values({'f': batch_pos_emb})
-        pos_nll = - torch.log(pos_tv + 1e-10).mean()
-        neg_tv = reasoner.evaluate_truth_values({'f': batch_neg_emb})
-        neg_nll = - torch.log(1 - neg_tv + 1e-10).mean()
-        metric_step['pos_tv'] = pos_tv.mean().item()
-        metric_step['pos_nll'] = pos_nll.item()
-        metric_step['neg_tv'] = neg_tv.mean().item()
-        metric_step['neg_nll'] = neg_nll.item()
-        loss += pos_nll + neg_nll
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        ####################
-        metric_step['loss'] = loss.item()
-
-        postfix = {'step': ifof+1}
-        for k in metric_step:
-            postfix[k] = np.mean(metric_step[k])
-            trajectory[k].append(postfix[k])
-        postfix['acc_loss'] = np.mean(trajectory['loss'])
-        t.set_postfix(postfix)
-
-        metric_step['acc_loss'] = postfix['acc_loss']
-        metric_step['lstr'] = fof.lstr
-
-        logging.info(f"[train neural link predictor {desc}] {json.dumps(metric_step)}")
-
-    t.close()
-
-    metric = {}
-    for k in trajectory:
-        metric[k] = np.mean(trajectory[k])
-    return metric
-
-
-def train_lifted_estimator_v1(
-        desc: str,
-        train_dataloader: QueryAnsweringSeqDataLoader,
-        nbp: NeuralBinaryPredicate,
-        reasoner: Reasoner,
-        optimizer: torch.optim.Optimizer,
-        args):
-
-    T = args.temp
-    trajectory = defaultdict(list)
-
-    fof_list = train_dataloader.get_fof_list()
-    t = tqdm.tqdm(enumerate(fof_list), desc=desc, total=len(fof_list))
-
-    # for each batch
-    for ifof, fof in t:
-        ####################
-        loss = 0
-        metric_step = {}
-
-        reasoner.initialize_with_formula(fof)
-
-        # this procedure is somewhat of low efficiency
-        # ? can we change it to batch implementation ?
-
-        reasoner.estimate_lifted_embeddings()
-        batch_fvar_emb = reasoner.get_embedding('f')
-
-        if args.lift_coef > 0 and 'lift' in args.objective:
-            lifted_tv = reasoner.evaluate_truth_values()
-            lifted_nll = - torch.log(lifted_tv + 1e-10).mean()
-            metric_step['lifted_tv'] = lifted_tv.mean().item()
-            metric_step['lifted_tv_nll'] = lifted_nll.mean().item()
-            loss += lifted_nll * args.lift_coef
-
-        pos_1answer_list = []
-        neg_answers_list = []
-
-        for i, pos_answer_dict in enumerate(fof.easy_answer_list):
-            # this iteration is somehow redundant since there is only one free
-            # variable in current case, i.e., fname='f'
-            assert 'f' in pos_answer_dict
-            pos_1answer_list.append(random.choice(pos_answer_dict['f']))
-            neg_answers_list.append(torch.randint(0, nbp.num_entities,
-                                                  (args.noisy_sample_size, 1)))
-
-        batch_pos_emb = nbp.get_entity_emb(pos_1answer_list)
-        batch_neg_emb = nbp.get_entity_emb(
-            torch.cat(neg_answers_list, dim=1))
-
-        if args.tv_coef > 0:
-            pos_tv = reasoner.evaluate_truth_values({'f': batch_pos_emb})
-            pos_tv_nll = - torch.log(pos_tv + 1e-10).mean()
-            neg_tv = reasoner.evaluate_truth_values({'f': batch_neg_emb})
-            neg_tv_nll = - torch.log(1 - neg_tv + 1e-10).mean()
-            metric_step['pos_tv'] = pos_tv.mean().item()
-            metric_step['pos_tv_nll'] = pos_tv_nll.item()
-            metric_step['neg_tv'] = neg_tv.mean().item()
-            metric_step['neg_tv_nll'] = neg_tv_nll.item()
-            loss += (pos_tv_nll + neg_tv_nll) * args.tv_coef
-
-        if args.contrastive_coef > 0 and 'contrastive_cosine' in args.objective:
-            contrastive_pos_score = torch.exp(torch.cosine_similarity(
-                batch_pos_emb, batch_fvar_emb, dim=-1) / T)
-            contrastive_neg_score = torch.exp(torch.cosine_similarity(
-                batch_neg_emb, batch_fvar_emb, dim=-1) / T)
-
-            contrastive_nll = - torch.log(
-                contrastive_pos_score / (contrastive_pos_score + contrastive_neg_score.sum(0))
-            ).mean()
-            metric_step['contrastive_pos_score'] = contrastive_pos_score.mean().item()
-            metric_step['contrastive_neg_score'] = contrastive_neg_score.mean().item()
-            metric_step['contrastive_nll'] = contrastive_nll.item()
-            loss += contrastive_nll * args.contrastive_coef
-
-        if args.neg_sample_dist_coef > 0 and 'neg_sample_dist' in args.objective:
-            pos_sample_score = torch.sigmoid(
-                args.dist_margin - torch.sum((batch_pos_emb-batch_fvar_emb)**2, dim=-1) / T)
-            neg_sample_score = torch.sigmoid(
-                args.dist_margin - torch.sum((batch_neg_emb-batch_fvar_emb)**2, dim=-1) / T)
-
-            neg_sample_nll = - torch.log(pos_sample_score + 1e-10).mean() \
-                             - torch.log(1 - neg_sample_score + 1e-10).mean()
-
-            metric_step['pos_sample_score'] = pos_sample_score.mean().item()
-            metric_step['neg_sample_score'] = neg_sample_score.mean().item()
-            metric_step['neg_sample_nll'] = neg_sample_nll.item()
-            loss += neg_sample_nll * args.neg_sample_dist_coef
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        ####################
-        metric_step['loss'] = loss.item()
-
-        postfix = {'step': ifof+1}
-        for k in metric_step:
-            postfix[k] = np.mean(metric_step[k])
-            trajectory[k].append(postfix[k])
-        postfix['acc_loss'] = np.mean(trajectory['loss'])
-        t.set_postfix(postfix)
-
-        metric_step['acc_loss'] = postfix['acc_loss']
-        metric_step['lstr'] = fof.lstr
-
-        logging.info(f"[train lifted estimator {desc}] {json.dumps(metric_step)}")
-
-    t.close()
-
-    metric = {}
-    for k in trajectory:
-        metric[k] = np.mean(trajectory[k])
-    return metric
-
-
-def train_lifted_estimator_v2(
+def train_LMPNN(
         desc: str,
         train_dataloader: QueryAnsweringSeqDataLoader,
         nbp: NeuralBinaryPredicate,
@@ -576,71 +378,8 @@ if __name__ == "__main__":
     nbp.to(args.device)
     print(f"model loaded from {args.checkpoint_path}")
 
-    # * initialize reasoning machine
-    if args.tnorm == 'product':
-        tnorm = ProductTNorm
-    else:
-        tnorm = GodelTNorm
-
-    if args.reasoner == 'deepset':
-        ent_dim = nbp.entity_embedding.size(1)
-        rel_dim = nbp.relation_embedding.size(1)
-        rds = RelationalDeepSet(
-            ent_dim, rel_dim, num_layers=args.num_layers).to(nbp.device)
-        reasoner = DeepsetEFOReasoner(nbp, tnorm, rds)
-        optimizer_estimator = getattr(torch.optim, args.optimizer)(
-            # list(rds.parameters()) + list(nbp.parameters()),
-            list(rds.parameters()),
-            lr=args.learning_rate,
-            weight_decay=args.weight_decay)
-
-    elif args.reasoner == 'gnn':
-        if args.no_relational_inference:
-            lgnn_layer = VanillaGNNLayerComplEx(nbp.embedding_dim,
-                                                hidden_dim=args.hidden_dim,
-                                                num_entities=nbp.num_entities,
-                                                layers=args.num_layers,
-                                                eps=args.eps,
-                                                agg_func=args.agg_func)
-        else:
-            lgnn_layer = LogicalGNNLayer(hidden_dim=args.hidden_dim,
-                                         nbp=nbp,
-                                         layers=args.num_layers,
-                                         eps=args.eps,
-                                         agg_func=args.agg_func)
-        lgnn_layer.to(nbp.device)
-        reasoner = GNNEFOReasoner(nbp, tnorm, lgnn_layer, depth_shift=args.depth_shift)
-        print(lgnn_layer)
-        if args.finetune_kge:
-            optimizer_estimator = getattr(torch.optim, args.optimizer)(
-                list(lgnn_layer.parameters()) + list(nbp.parameters()),
-                lr=args.learning_rate,
-                weight_decay=args.weight_decay)
-        else:
-            optimizer_estimator = getattr(torch.optim, args.optimizer)(
-                list(lgnn_layer.parameters()),
-                lr=args.learning_rate,
-                weight_decay=args.weight_decay)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer_estimator, 50, 0.1)
-
-    elif args.reasoner == 'gradient':
-        reasoner = GradientEFOReasoner(nbp, tnorm,
-                                       reasoning_rate=args.reasoning_rate,
-                                       reasoning_steps=args.reasoning_steps,
-                                       reasoning_optimizer=args.reasoning_optimizer)
-        optimizer_estimator = getattr(torch.optim, args.optimizer)(
-            nbp.parameters(),
-            lr=args.learning_rate,
-            weight_decay=args.weight_decay)
-
-    # * prepare dataset``
+    # * load the dataset, by default, we load the dataset to test
     print("loading dataset")
-    if args.train_queries:
-        train_queries = [name2lstr[tq] for tq in args.train_queries]
-    else:
-        train_queries = list(name2lstr.values())
-    print("train queries", train_queries)
-
     if args.eval_queries:
         eval_queries = [name2lstr[tq] for tq in args.eval_queries]
     else:
@@ -661,84 +400,56 @@ if __name__ == "__main__":
         shuffle=False,
         num_workers=0)
 
-    print("dataset prepared")
+    if args.reasoner in ['gradient', 'beam']:
+        # for those reasoners without training
+        tnorm = Tnorm.get_tnorm(args.tnorm)
 
-    if args.eval_cqd:
+        # todo: add more reasoners
+        reasoner = GradientEFOReasoner(
+            nbp,
+            tnorm,
+            reasoning_rate=args.reasoning_rate,
+            reasoning_steps=args.reasoning_steps,
+            reasoning_optimizer=args.reasoning_optimizer)
+
         evaluate_by_search_emb_then_rank_truth_value(
-            -1, f"CQD evaluate validate set",
-            valid_dataloader, nbp,
-            reasoner=GradientEFOReasoner(nbp, tnorm,
-                                        reasoning_rate=args.reasoning_rate,
-                                        reasoning_steps=args.reasoning_steps,
-                                        reasoning_optimizer=args.reasoning_optimizer)
-            )
+            -1, f"valuate validate set", valid_dataloader, nbp, reasoner)
         evaluate_by_search_emb_then_rank_truth_value(
-            -1, f"CQD evaluate test set",
-            test_dataloader, nbp,
-            reasoner=GradientEFOReasoner(nbp, tnorm,
-                                        reasoning_rate=args.reasoning_rate,
-                                        reasoning_steps=args.reasoning_steps,
-                                        reasoning_optimizer=args.reasoning_optimizer)
-            )
-        exit()
+            -1, f"evaluate test set", test_dataloader, nbp, reasoner)
 
+    elif args.reasoner == 'lmpnn':
+        # for those reasoners with training
+        if args.train_queries:
+            train_queries = [name2lstr[tq] for tq in args.train_queries]
+        else:
+            train_queries = list(name2lstr.values())
+        print("train queries", train_queries)
 
-    if args.pretrain_epoch > 0:
-        zero_lmpnn = LogicalGNNLayer(hidden_dim=0,
-                                     nbp=nbp,
-                                     layers=0)
-        zero_lmpnn.to(nbp.device)
-        zero_reasoner = GNNEFOReasonerComplEx(nbp, tnorm, zero_lmpnn)
-        train_dataloader_1p = QueryAnsweringSeqDataLoader(
-            osp.join(args.task_folder, 'train-qaa.json'),
-            batch_size=args.batch_size,
-            shuffle=True,
-            num_workers=0)
-        valid_dataloader_1p = QueryAnsweringSeqDataLoader(
-            osp.join(args.task_folder, 'valid-qaa.json'),
-            batch_size=args.batch_size_eval_dataloader,
-            shuffle=False,
-            num_workers=0)
-        test_dataloader_1p = QueryAnsweringSeqDataLoader(
-            osp.join(args.task_folder, 'test-qaa.json'),
-            batch_size=args.batch_size_eval_dataloader,
-            shuffle=False,
-            num_workers=0)
-        optimizer_nbp = getattr(torch.optim, args.optimizer)(
-            nbp.parameters(),
-            lr=args.learning_rate,
-            weight_decay=args.weight_decay)
-        for e in range(args.pretrain_epoch):
-            train_lifted_estimator_v2(f"pretrain epoch {e}",
-                                      train_dataloader_1p, nbp, zero_reasoner, optimizer_nbp, args)
-
-            if (e+1) % 20 == 0:
-                evaluate_by_nearest_search(e, f"NN evaluate validate set pretrain epoch {e+1}",
-                                           valid_dataloader_1p, nbp, zero_reasoner)
-                evaluate_by_nearest_search(e, f"NN evaluate test set pretrain epoch {e+1}",
-                                           test_dataloader_1p, nbp, zero_reasoner)
-                last_name = os.path.join(args.checkpoint_dir,
-                                        f'pretrain-nbp-last.ckpt')
-                torch.save(nbp.state_dict(), last_name)
-            if (e+1) % 200 == 0:
-                save_name = os.path.join(args.checkpoint_dir,
-                                        f'pretrain-nbp-{e+1}.ckpt')
-                torch.save(nbp.state_dict(), save_name)
-                logging.info(f"pretrain nbp at epoch {e+1} is saved to {save_name}")
-
-
-    if args.epoch > 0:
         train_dataloader = QueryAnsweringSeqDataLoader(
             osp.join(args.task_folder, 'train-qaa.json'),
             size_limit=args.batch_size * 1,
-            # target_lstr=train_queries,
+            target_lstr=train_queries,
             batch_size=args.batch_size,
             shuffle=True,
             num_workers=0)
+        lgnn_layer = LogicalGNNLayer(hidden_dim=args.hidden_dim,
+                                     nbp=nbp,
+                                     layers=args.num_layers,
+                                     eps=args.eps,
+                                     agg_func=args.agg_func)
+        lgnn_layer.to(nbp.device)
+
+        reasoner = GNNEFOReasoner(nbp, lgnn_layer, depth_shift=args.depth_shift)
+        print(lgnn_layer)
+        optimizer_estimator = getattr(torch.optim, args.optimizer)(
+            list(lgnn_layer.parameters()),
+            lr=args.learning_rate,
+            weight_decay=args.weight_decay)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer_estimator, 50, 0.1)
+
 
         for e in range(args.epoch):
-            train_lifted_estimator_v2(f"epoch {e}",
-                                      train_dataloader, nbp, reasoner, optimizer_estimator, args)
+            train_LMPNN(f"epoch {e}", train_dataloader, nbp, reasoner, optimizer_estimator, args)
             scheduler.step()
             if (e+1) % 5 == 0:
                 evaluate_by_nearest_search(e, f"NN evaluate validate set epoch {e+1}",
@@ -753,20 +464,3 @@ if __name__ == "__main__":
                                         f'lmpnn-{e+1}.ckpt')
                 torch.save(lgnn_layer.state_dict(), save_name)
                 logging.info(f"lmpnn at epoch {e+1} is saved to {save_name}")
-
-    train_lifted_estimator_v2(f"epoch {e}",
-                                train_dataloader, nbp, reasoner, optimizer_estimator, args)
-    scheduler.step()
-    if (e+1) % 5 == 0:
-        evaluate_by_nearest_search(e, f"NN evaluate validate set epoch {e+1}",
-                                    valid_dataloader, nbp, reasoner)
-        evaluate_by_nearest_search(e, f"NN evaluate test set epoch {e+1}",
-                                    test_dataloader, nbp, reasoner)
-        last_name = os.path.join(args.checkpoint_dir,
-                                f'lmpnn-last.ckpt')
-        torch.save(lgnn_layer.state_dict(), last_name)
-    if (e+1) % 20 == 0:
-        save_name = os.path.join(args.checkpoint_dir,
-                                f'lmpnn-{e+1}.ckpt')
-        torch.save(lgnn_layer.state_dict(), save_name)
-        logging.info(f"lmpnn at epoch {e+1} is saved to {save_name}")

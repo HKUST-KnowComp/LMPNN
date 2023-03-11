@@ -1,9 +1,11 @@
 # Logical Message Passing Networks with One-hop Inference on Atomic Formula
 
-Implementation for ICLR 2023 paper, Logical Message Passing Networks with One-hop Inference on Atomic Formula, see the [arXiv version](https://arxiv.org/abs/2301.08859) and the [OpenReview version](https://openreview.net/forum?id=SoyOsp7i_l).
+Implementation for ICLR 2023 paper:
+> Logical Message Passing Networks with One-hop Inference on Atomic Formula
 
-In this documentation, we detail how to reproduce the results in the paper which is based on existing checkpoints released by other researchers.
-We also introduce several ways to train KGE checkpoints with released repository, which can be backbones for LMPNN.
+see the [arXiv version](https://arxiv.org/abs/2301.08859) and the [OpenReview version](https://openreview.net/forum?id=SoyOsp7i_l).
+
+In this documentation, we detail how to reproduce the results in the paper based on existing checkpoints released by other researchers.
 
 ## Requirement of this repository
 - pytorch
@@ -13,7 +15,11 @@ We also introduce several ways to train KGE checkpoints with released repository
 Requirement of other submodules will be discussed accordingly.
 
 ## Version
-** This repo is under construction for usability. The key results for the paper can already be reproduced.  **
+** This repo is under construction for usability. The key results for the paper can already be reproduced. **
+
+Todo features:
+- [ ] Introduce several ways to train KGE checkpoints with released repositories, which can be backbones for LMPNN.
+
 
 ## Prepare the dataset
 Please download the dataset from [snap-stanford/KGReasoning](https://github.com/snap-stanford/KGReasoning).
@@ -186,8 +192,9 @@ mv models raw_cqd_pretrain_models
 ```
 
 Then we can convert the checkpoints into the format used in this repo.
-
-
+```bash
+python convert_cqd_pretrain_ckpts.py
+```
 
 ## Train LMPNN
 
