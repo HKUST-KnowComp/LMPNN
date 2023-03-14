@@ -37,7 +37,6 @@ parser = argparse.ArgumentParser()
 # base environment
 parser.add_argument("--device", type=str, default="cpu")
 parser.add_argument("--output_dir", type=str, default='log')
-parser.add_argument("--checkpoint_dir", type=str, default='log')
 
 # input task folder, defines knowledge graph, index, and formulas
 parser.add_argument("--task_folder", type=str, default='data/FB15k-237-betae')
@@ -59,7 +58,7 @@ parser.add_argument("--checkpoint_path")
 # optimization for the entire process
 parser.add_argument("--optimizer", type=str, default='AdamW')
 parser.add_argument("--epoch", type=int, default=100)
-
+parser.add_argument("--learning_rate", type=float, default=1e-4)
 # need justification
 parser.add_argument("--weight_decay", type=float, default=1e-4)
 parser.add_argument("--noisy_sample_size", type=int, default=128)
@@ -108,7 +107,7 @@ def train_LMPNN(
 
         # this procedure is somewhat of low efficiency
         reasoner.estimate_variable_embeddings()
-        batch_fvar_emb = reasoner.get_embedding('f')
+        batch_fvar_emb = reasoner.get_ent_emb('f')
         pos_1answer_list = []
         neg_answers_list = []
 
@@ -286,9 +285,9 @@ def evaluate_by_nearest_search(
             with torch.no_grad():
                 reasoner.initialize_with_query(fof)
                 reasoner.estimate_variable_embeddings()
-                batch_fvar_emb = reasoner.get_embedding('f')
+                batch_fvar_emb = reasoner.get_ent_emb('f')
                 batch_entity_rankings = nbp.get_all_entity_rankings(
-                    batch_fvar_emb, score=args.score)
+                    batch_fvar_emb, score="cos")
             # [batch_size, num_entities]
             compute_evaluation_scores(
                 fof, batch_entity_rankings, metric[fof.lstr])
@@ -318,7 +317,6 @@ if __name__ == "__main__":
 
     # * prepare the logger
     os.makedirs(args.output_dir, exist_ok=True)
-    os.makedirs(args.checkpoint_dir, exist_ok=True)
     logging.basicConfig(filename=osp.join(args.output_dir, 'output.log'),
                         format='%(asctime)s %(message)s',
                         level=logging.INFO,
@@ -424,11 +422,11 @@ if __name__ == "__main__":
                                            valid_dataloader, nbp, reasoner)
                 evaluate_by_nearest_search(e, f"NN evaluate test set epoch {e+1}",
                                            test_dataloader, nbp, reasoner)
-                last_name = os.path.join(args.checkpoint_dir,
+                last_name = os.path.join(args.output_dir,
                                         f'lmpnn-last.ckpt')
                 torch.save(lgnn_layer.state_dict(), last_name)
             if (e+1) % 20 == 0:
-                save_name = os.path.join(args.checkpoint_dir,
+                save_name = os.path.join(args.output_dir,
                                         f'lmpnn-{e+1}.ckpt')
                 torch.save(lgnn_layer.state_dict(), save_name)
                 logging.info(f"lmpnn at epoch {e+1} is saved to {save_name}")

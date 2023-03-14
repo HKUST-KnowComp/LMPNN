@@ -24,13 +24,33 @@ class Reasoner:
     def initialize_with_query(self, formula:EFO1Query):
         pass
 
-    @abstractmethod
-    def get_ent_emb(self, term_name, begin_index, end_index):
-        pass
+    def get_ent_emb(self,
+                    term_name,
+                    begin_index=None,
+                    end_index=None):
+        if self.formula.has_term_grounded_entity_id_list(term_name):
+            emb = self.nbp.get_entity_emb(
+                self.formula.get_term_grounded_entity_id_list(term_name))
+        elif self.term_local_emb_dict[term_name] is not None:
+            emb = self.term_local_emb_dict[term_name]
+        else:
+            raise KeyError("Embedding does not found")
+        # when it is not free variable, we consider the batch
+        if begin_index is not None and end_index is not None:
+            emb = emb[begin_index: end_index]
+        return emb
 
-    @abstractmethod
-    def get_rel_emb(self, pred_name, begin_index, end_index):
-        pass
+    def get_rel_emb(self,
+                    term_name,
+                    begin_index=None,
+                    end_index=None,
+                    inv=False):
+        emb = self.nbp.get_relation_emb(
+            self.formula.get_pred_grounded_relation_id_list(term_name), inv)
+        if begin_index is not None and end_index is not None:
+            emb = emb[begin_index: end_index]
+        return emb
+
 
     @abstractmethod
     def estimate_variable_embeddings(self):
@@ -233,45 +253,6 @@ class GradientEFOReasoner(Reasoner):
                     continue
         return
 
-    def initialize_variable_embeddings_v2(self):
-        # normal initialization
-        for symb_name in self.formula.symbol_dict:
-            symb_emb = self.get_embedding(symb_name)
-
-        for term_name in self.formula.existential_variable_dict:
-            init_vec = torch.normal(0, 1e-3, symb_emb.shape, device=symb_emb.device)
-            self.set_local_embedding(term_name, init_vec)
-
-        for term_name in self.formula.free_variable_dict:
-            init_vec = torch.normal(0, 1e-3, symb_emb.shape, device=symb_emb.device)
-            self.set_local_embedding(term_name, init_vec)
-
-    def get_ent_emb(self,
-                    term_name,
-                    begin_index=None,
-                    end_index=None):
-        if self.formula.has_term_grounded_entity_id_list(term_name):
-            emb = self.nbp.get_entity_emb(
-                self.formula.get_term_grounded_entity_id_list(term_name))
-        elif self.term_local_emb_dict[term_name] is not None:
-            emb = self.term_local_emb_dict[term_name]
-        else:
-            raise KeyError("Embedding does not found")
-        # when it is not free variable, we consider the batch
-        if begin_index is not None and end_index is not None:
-            emb = emb[begin_index: end_index]
-        return emb
-
-    def get_rel_emb(self,
-                    term_name,
-                    begin_index=None,
-                    end_index=None):
-        emb = self.nbp.get_relation_emb(
-            self.formula.get_pred_grounded_relation_id_list(term_name))
-        if begin_index is not None and end_index is not None:
-            emb = emb[begin_index: end_index]
-        return emb
-
     def estimate_variable_embeddings(self):
         self.initialize_variable_embeddings()
         evar_local_emb = [
@@ -379,7 +360,7 @@ class LogicalGNNLayer(nn.Module):
             head_name, tail_name = pred.head.name, pred.tail.name
             head_emb = term_emb_dict[head_name]
             tail_emb = term_emb_dict[tail_name]
-            sign = -1 if pred.skolem_negation else 1
+            sign = -1 if pred.negated else 1
 
             pred_emb = pred_emb_dict[pred.name]
 
@@ -476,13 +457,11 @@ class GNNEFOReasoner(Reasoner):
         term_emb_dict = self.term_local_emb_dict
         pred_emb_dict = {}
         inv_pred_emb_dict = {}
-        for pred_name in self.formula.atomic_dict:
+        for atomic_name in self.formula.atomic_dict:
+            pred_name = self.formula.atomic_dict[atomic_name].name
             if self.formula.has_pred_grounded_relation_id_list(pred_name):
-                relation_id = self.formula.get_pred_grounded_relation_id_list(pred_name)
-                emb = self.nbp.get_relation_emb(relation_id, inv=False)
-                pred_emb_dict[pred_name] = emb
-                emb = self.nbp.get_relation_emb(relation_id, inv=True)
-                inv_pred_emb_dict[pred_name] = emb
+                pred_emb_dict[pred_name] = self.get_rel_emb(pred_name)
+                inv_pred_emb_dict[pred_name] = self.get_rel_emb(pred_name, inv=True)
 
         for _ in range(
             max(1, self.formula.quantifier_rank + self.depth_shift)
@@ -492,10 +471,3 @@ class GNNEFOReasoner(Reasoner):
         for term_name in term_emb_dict:
             # if not self.formula.term_dict[term_name].is_symbol:
             self.term_local_emb_dict[term_name] = term_emb_dict[term_name]
-
-    def get_embedding(self, term_name, begin_index=None, end_index=None):
-        assert self.term_local_emb_dict[term_name] is not None
-        emb = self.term_local_emb_dict[term_name]
-        if begin_index is not None and end_index is not None:
-            emb = emb[begin_index: end_index]
-        return emb

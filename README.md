@@ -71,7 +71,7 @@ where
 - `{train/valid/test}_kg.tsv` stores the triples in three knowledge graphs (triples in `train_kg.tsv` is the subset of those in `valid_kg.tsv`, and triples `valid_kg.tsv` is also the subset of those in `test_kg.tsv`)
 - `{train/valid/test}-qaa.json` stores the Query, easy Answers and hard Answers for train, valid, and test set.
 
-### (B) Pretrain KGE checkpoints with external submodules
+### (B1) Pretrain KGE checkpoints with external submodules
 
 We consider two different repositories to pretrain the KGE checkpoints.
 Including
@@ -89,19 +89,7 @@ Generally, there are two steps, once the KG is prepared:
 1. Convert the KG triples into the format that can be used in each submodule.
 2. Train the checkpoints.
 
-#### Choice 1: ckpts pretrained by [uclnlp/cqd](https://github.com/uclnlp/cqd)
-
-One could directly download the checkpoints by [uclnlp/cqd](https://github.com/uclnlp/cqd). These produces the results of this paper.
-
-```sh
-mkdir pretrain
-cd pretrain
-wget http://data.neuralnoise.com/cqd-models.tgz # a .tgz file of 4.8G
-tar xvf cqd-models.tgz
-mv models raw_cqd_pretrain_models
-```
-
-#### Choice 2: Pretrain with [uma-pi1/kge](https://github.com/uma-pi1/kge)
+#### Choice 1: Pretrain with [uma-pi1/kge](https://github.com/uma-pi1/kge)
 
 ##### Step 0: Prepare the environment and config
 
@@ -130,7 +118,7 @@ kge start config/kge/fb15k-237-complex.yaml --job.device cuda:0
 The obtained checkpoints can be found at `kge/local`.
 
 
-#### Choice 3: Pretrain with [facebookresearch/ssl-relation-prediction](https://github.com/facebookresearch/ssl-relation-prediction)
+#### Choice 2: Pretrain with [facebookresearch/ssl-relation-prediction](https://github.com/facebookresearch/ssl-relation-prediction)
 
 
 ##### Step 0: Prepare the environment
@@ -179,7 +167,7 @@ python src/main.py --dataset FB15k-237-betae \
 
 The obtained checkpoints can be found at `ssl-relation-prediction/ckpts/FB15k-237-complex`.
 
-### (C) Convert pretrained KGE checkpoints into the format for the usage of LMPNN
+### (B2) Convert pretrained KGE checkpoints into the acceptable format
 
 We convert external KGE checkpoints into the format that can be loaded by LMPNN. We consider three sources of external checkpoints
 
@@ -211,8 +199,8 @@ python convert_cqd_pretrain_ckpts.py
 
 ## Train LMPNN
 
-Sample usage
 
+Sample usage at FB15k-237
 ```bash
 python train_lmpnn.py \
   --task_folder data/FB15k-237-betae \
@@ -222,7 +210,27 @@ python train_lmpnn.py \
   --output_dir log/fb15k-237/pretrain_complex1000-default
 ```
 
-## Answering Existential First Order (EFO) Queries
+Sample usage at FB15k
+```bash
+python3 train_lmpnn.py \
+  --task_folder data/FB15k-betae \
+  --checkpoint_path pretrain/cqd/FB15k-model-rank-1000-epoch-100-1602520745.pt \
+  --device cuda:1 \
+  --output_dir log/FB15k/lmpnn-complex1k-default
+```
+
+Sample usage at NELL
+```bash
+python train_lmpnn.py \
+  --task_folder data/NELL-betae \
+  --checkpoint_path pretrain/cqd/NELL-model-rank-1000-epoch-100-1602499096.pt \
+  --device cuda:2 \
+  --batch_size 512 \
+  --batch_size_eval_dataloader 128 \
+  --output_dir log/nell/lmpgnn-complex1k-default
+```
+
+## Answering Existential First Order (EFO) queries
 
 In this repository, the capability of answering EFO-1 queries is implemented by the `reasoner`s.
 
@@ -230,7 +238,7 @@ In this repository, the capability of answering EFO-1 queries is implemented by 
 - LMPNN is implemented as `GNNEFOReasoner` with `LogicalGNNLayer`
 
 ```bash
-python3 train_lmpnn.py \
+python train_lmpnn.py \
   --reasoner gradient \
   --device cuda:1 \
   --checkpoint_path pretrain/cqd/FB15k-237-model-rank-1000-epoch-100-1602508358.pt
