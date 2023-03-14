@@ -13,9 +13,10 @@ import tqdm
 
 from src.language.tnorm import Tnorm
 from src.language.grammar import parse_lstr_to_lformula
-from src.pipeline.reasoning_machine import (GNNEFOReasoner,
-                                            GradientEFOReasoner,
-                                            LogicalGNNLayer, Reasoner)
+from src.pipeline.reasoner import (GNNEFOReasoner,
+                                   GradientEFOReasoner,
+                                   LogicalGNNLayer,
+                                   Reasoner)
 from src.structure import get_nbp_class
 from src.structure.knowledge_graph import KnowledgeGraph
 from src.structure.knowledge_graph_index import KGIndex
