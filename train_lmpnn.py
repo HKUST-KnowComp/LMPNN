@@ -11,7 +11,8 @@ import numpy as np
 import torch
 import tqdm
 
-from src.language.tnorm import GodelTNorm, ProductTNorm, Tnorm
+from src.language.tnorm import Tnorm
+from src.language.grammar import parse_lstr_to_lformula
 from src.pipeline.reasoning_machine import (GNNEFOReasoner,
                                             GradientEFOReasoner,
                                             LogicalGNNLayer, Reasoner)
@@ -25,17 +26,10 @@ torch.autograd.set_detect_anomaly(True)
 
 from convert_beta_dataset import beta_lstr2name
 
-lstr2name = beta_lstr2name
+lstr2name = {parse_lstr_to_lformula(k).lstr: v for k, v in beta_lstr2name.items()}
 name2lstr = {v: k for k, v in lstr2name.items()}
 
-negation_query = [
-    "r1(s1,f)&!r2(s2,f)",  # 2in
-    "r1(s1,f)&r2(s2,f)&!r3(s3,f)",  # 3in
-    "r1(s1,e1)&!r2(s2,e1)&r3(e1,f)",  # inp
-    "r1(s1,e1)&r2(e1,f)&!r3(s2,f)",  # pin
-    "r1(s1,e1)&!r2(e1,f)&r3(s2,f)",  # pni
-]
-
+negation_query = [name for name in name2lstr if '!' in name]
 
 parser = argparse.ArgumentParser()
 
@@ -48,60 +42,43 @@ parser.add_argument("--checkpoint_dir", type=str, default='log')
 parser.add_argument("--task_folder", type=str, default='data/FB15k-237-betae')
 parser.add_argument("--train_queries", action='append')
 parser.add_argument("--eval_queries", action='append')
+parser.add_argument("--batch_size", type=int, default=1024, help="batch size for training")
+parser.add_argument("--batch_size_eval_truth_value", type=int, default=32, help="batch size for evaluating the truth value")
+parser.add_argument("--batch_size_eval_dataloader", type=int, default=5000, help="batch size for evaluation")
 
-parser.add_argument("--eval_cqd", action="store_true", default=False)
-parser.add_argument("--finetune_kge", action="store_true", default=False)
-parser.add_argument("--no_relational_inference", action="store_true", default=False)
 
 # model, defines the neural binary predicate
 parser.add_argument("--model_name", type=str, default='complex')
 parser.add_argument("--embedding_dim", type=int, default=1000)
 parser.add_argument("--margin", type=float, default=10)
-parser.add_argument("--scale", type=float, default=0.1)
+parser.add_argument("--scale", type=float, default=1)
 parser.add_argument("--p", type=int, default=1)
 parser.add_argument("--checkpoint_path")
 
 # optimization for the entire process
 parser.add_argument("--optimizer", type=str, default='AdamW')
 parser.add_argument("--epoch", type=int, default=100)
-parser.add_argument("--pretrain_epoch", type=int, default=0)
-parser.add_argument("--batch_size", type=int, default=1024)
-parser.add_argument("--batch_size_eval", type=int, default=64)
-parser.add_argument("--batch_size_eval_dataloader", type=int, default=5000)
-# need justification
-parser.add_argument("--learning_rate", type=float, default=1e-4)
-parser.add_argument("--learning_rate_pretrain", type=float, default=1e-4)
+
 # need justification
 parser.add_argument("--weight_decay", type=float, default=1e-4)
-# need justification
 parser.add_argument("--noisy_sample_size", type=int, default=128)
-# contrastive learning temperature
 parser.add_argument("--temp", type=float, default=0.05)
-# neg sampling distance margin
-parser.add_argument("--dist_margin", type=float, default=10.0)
 
-parser.add_argument("--objective", type=str, default='lift-contrastive_cosine')
-parser.add_argument("--contrastive_coef", type=float, default=1.0)
-parser.add_argument("--lift_coef", type=float, default=1.0)
-parser.add_argument("--tv_coef", type=float, default=1.0)
-parser.add_argument("--neg_sample_dist_coef", type=float, default=1.0)
 # reasoning machine
-parser.add_argument("--reasoner", type=str, default='gnn', choices=['gnn', 'deepset', 'gradient'])
+parser.add_argument("--reasoner", type=str, default='lmpnn', choices=['lmpnn', 'gradient', 'beam'])
 parser.add_argument("--tnorm", type=str, default='product', choices=['product', 'godel'])
+
 # reasoner = gradient
 parser.add_argument("--reasoning_rate", type=float, default=1e-1)
 parser.add_argument("--reasoning_steps", type=int, default=1000)
 parser.add_argument("--reasoning_optimizer", type=str, default='AdamW')
-parser.add_argument("--reasoning_steps_eval", type=int, default=1000)
+
 # reasoner = gnn
 parser.add_argument("--num_layers", type=int, default=1)
 parser.add_argument("--hidden_dim", type=int, default=4096)
 parser.add_argument("--eps", type=float, default=0.1)
 parser.add_argument("--depth_shift", type=int, default=0)
 parser.add_argument("--agg_func", type=str, default='sum')
-
-parser.add_argument("--score", type=str, default='cos', choices=['cos', 'dist'])
-parser.add_argument("--gamma", type=float, default=9)
 
 
 def train_LMPNN(
@@ -126,12 +103,10 @@ def train_LMPNN(
         loss = 0
         metric_step = {}
 
-        reasoner.initialize_with_formula(fof)
+        reasoner.initialize_with_query(fof)
 
         # this procedure is somewhat of low efficiency
-        # ? can we change it to batch implementation ?
-
-        reasoner.estimate_lifted_embeddings()
+        reasoner.estimate_variable_embeddings()
         batch_fvar_emb = reasoner.get_embedding('f')
         pos_1answer_list = []
         neg_answers_list = []
@@ -149,21 +124,14 @@ def train_LMPNN(
         batch_neg_emb = nbp.get_entity_emb(
             torch.cat(neg_answers_list, dim=1))
 
-        if args.score == 'cos':
-            contrastive_pos_score = torch.exp(torch.cosine_similarity(
-                batch_pos_emb, batch_fvar_emb, dim=-1) / T)
-            contrastive_neg_score = torch.exp(torch.cosine_similarity(
-                batch_neg_emb, batch_fvar_emb, dim=-1) / T)
-            contrastive_nll = - torch.log(
-                contrastive_pos_score / (contrastive_pos_score + contrastive_neg_score.sum(0))
-            ).mean()
+        contrastive_pos_score = torch.exp(torch.cosine_similarity(
+            batch_pos_emb, batch_fvar_emb, dim=-1) / T)
+        contrastive_neg_score = torch.exp(torch.cosine_similarity(
+            batch_neg_emb, batch_fvar_emb, dim=-1) / T)
+        contrastive_nll = - torch.log(
+            contrastive_pos_score / (contrastive_pos_score + contrastive_neg_score.sum(0))
+        ).mean()
 
-        else:
-            contrastive_pos_score = -torch.sigmoid(
-                args.gamma - torch.norm(batch_pos_emb - batch_fvar_emb, dim=-1))
-            contrastive_neg_score = -torch.sigmoid(
-                - args.gamma + torch.norm(batch_neg_emb - batch_fvar_emb, dim=-1))
-            contrastive_nll = -torch.log(contrastive_pos_score+1e-10).mean() - torch.log(contrastive_neg_score+1e-10).mean()
 
         metric_step['contrastive_pos_score'] = contrastive_pos_score.mean().item()
         metric_step['contrastive_neg_score'] = contrastive_neg_score.mean().item()
@@ -187,7 +155,7 @@ def train_LMPNN(
         metric_step['acc_loss'] = postfix['acc_loss']
         metric_step['lstr'] = fof.lstr
 
-        logging.info(f"[train lifted estimator {desc}] {json.dumps(metric_step)}")
+        logging.info(f"[train LMPNN {desc}] {json.dumps(metric_step)}")
 
     t.close()
 
@@ -255,26 +223,26 @@ def evaluate_by_search_emb_then_rank_truth_value(
     # first level key: lstr
     # second level key: metric name
     metric = defaultdict(lambda: defaultdict(list))
-    fofs = dataloader.get_fof_list()
+    foqs = dataloader.get_fof_list()
 
     # conduct reasoning
-    with tqdm.tqdm(fofs, desc=desc) as t:
-        for fof in t:
-            reasoner.initialize_with_formula(fof)
-            reasoner.estimate_lifted_embeddings()
+    with tqdm.tqdm(foqs, desc=desc) as t:
+        for query in t:
+            reasoner.initialize_with_query(query)
+            reasoner.estimate_variable_embeddings()
             with torch.no_grad():
                 truth_value_entity_batch = reasoner.evaluate_truth_values(
                     free_var_emb_dict={
                         'f': nbp.entity_embedding.unsqueeze(1)
                     },
-                    batch_size_eval=args.batch_size_eval)  # [num_entities batch_size]
+                    batch_size_eval=args.batch_size_eval_truth_value)  # [num_entities batch_size]
             ranking_score = torch.transpose(truth_value_entity_batch, 0, 1)
             ranked_entity_ids = torch.argsort(
                 ranking_score, dim=-1, descending=True)
             batch_entity_rankings = torch.argsort(
                 ranked_entity_ids, dim=-1, descending=False)
             compute_evaluation_scores(
-                fof, batch_entity_rankings, metric[fof.lstr])
+                query, batch_entity_rankings, metric[query.lstr])
 
             sum_metric = defaultdict(dict)
             for lstr in metric:
@@ -284,7 +252,7 @@ def evaluate_by_search_emb_then_rank_truth_value(
 
             postfix = {}
             # postfix['reasoning_steps'] = len(traj)
-            postfix['lstr'] = fof.lstr
+            postfix['lstr'] = query.lstr
             for name in ['1p', '2p', '3p', '2i', 'inp']:
                 if name in sum_metric:
                     postfix[name + '_hit3'] = sum_metric[name]['hit3']
@@ -315,8 +283,8 @@ def evaluate_by_nearest_search(
     with tqdm.tqdm(fofs, desc=desc) as t:
         for fof in t:
             with torch.no_grad():
-                reasoner.initialize_with_formula(fof)
-                reasoner.estimate_lifted_embeddings()
+                reasoner.initialize_with_query(fof)
+                reasoner.estimate_variable_embeddings()
                 batch_fvar_emb = reasoner.get_embedding('f')
                 batch_entity_rankings = nbp.get_all_entity_rankings(
                     batch_fvar_emb, score=args.score)
@@ -427,7 +395,6 @@ if __name__ == "__main__":
 
         train_dataloader = QueryAnsweringSeqDataLoader(
             osp.join(args.task_folder, 'train-qaa.json'),
-            size_limit=args.batch_size * 1,
             target_lstr=train_queries,
             batch_size=args.batch_size,
             shuffle=True,

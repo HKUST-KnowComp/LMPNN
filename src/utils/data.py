@@ -7,7 +7,7 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 
-from src.language.fof import FirstOrderFormula
+from src.language.foq import EFO1Query
 from src.language.grammar import parse_lstr_to_lformula
 
 
@@ -91,9 +91,9 @@ class QAACollatorWithNoisySentencePair:
 
     def __call__(self, batch_input):
         lformula = parse_lstr_to_lformula(self.lstr)
-        positive_fof = FirstOrderFormula(lformula)
+        positive_fof = EFO1Query(lformula)
         lformula = parse_lstr_to_lformula(self.lstr)
-        negative_fof = FirstOrderFormula(lformula)
+        negative_fof = EFO1Query(lformula)
 
         for rsdict, easy_ans, _ in batch_input:
             positive_fof.append_qa_instances_as_sentence(rsdict,
@@ -120,9 +120,9 @@ class QAACollatorWithNoisyAnswers:
 
     def __call__(self, batch_input):
         lformula = parse_lstr_to_lformula(self.lstr)
-        positive_fof = FirstOrderFormula(lformula)
+        positive_fof = EFO1Query(lformula)
         lformula = parse_lstr_to_lformula(self.lstr)
-        negative_fof = FirstOrderFormula(lformula)
+        negative_fof = EFO1Query(lformula)
 
         for rsdict, easy_ans, _ in batch_input:
             positive_fof.append_qa_instances(rsdict,
@@ -146,10 +146,10 @@ class QAACollator:
 
     def __call__(self, batch_input):
         lformula = parse_lstr_to_lformula(self.lstr)
-        fof = FirstOrderFormula(lformula)
+        query = EFO1Query(lformula)
         for rsdict, easy_ans, hard_ans in batch_input:
-            fof.append_qa_instances(rsdict, easy_ans, hard_ans)
-        return fof
+            query.append_qa_instances(rsdict, easy_ans, hard_ans)
+        return query
 
 class QueryAnsweringSeqDataLoader:
     def __init__(self, qaafile, target_lstr=None, size_limit=-1, **dataloader_kwargs) -> None:
@@ -160,14 +160,20 @@ class QueryAnsweringSeqDataLoader:
 
         self.lstr_iterator = {}
         for lstr, qaa in self.lstr_qaa.items():
+            _lstr = parse_lstr_to_lformula(lstr).lstr
             if target_lstr:
-                if lstr not in target_lstr:
+                if _lstr not in target_lstr:
+                    print(lstr, "query not selected, continue")
                     continue
             if not qaa:
-                print(lstr, "query type is empty, continue")
+                print(_lstr, "query type is empty, continue")
                 continue
-            self.lstr_iterator[lstr] = DataLoader(qaa[:size_limit],
-                collate_fn=QAACollator(lstr),
+
+            if size_limit > 0:
+                qaa = qaa[:size_limit]
+
+            self.lstr_iterator[_lstr] = DataLoader(qaa,
+                collate_fn=QAACollator(_lstr),
                 **self.dataloader_kwargs)
 
 

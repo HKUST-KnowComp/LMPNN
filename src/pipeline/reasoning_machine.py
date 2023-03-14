@@ -7,8 +7,8 @@ import math
 
 import torch
 from torch import nn
-from src.language.fof import (BinaryPredicate, Conjunction, Disjunction,
-                              FirstOrderFormula, Negation, Term)
+from src.language.foq import (Atomic, Conjunction, Disjunction,
+                              EFO1Query, Negation, Term)
 from src.language.tnorm import Tnorm
 from src.structure.neural_binary_predicate import NeuralBinaryPredicate
 
@@ -21,15 +21,19 @@ class Reasoner:
         pass
 
     @abstractmethod
-    def initialize_with_formula(self, formula:FirstOrderFormula):
+    def initialize_with_query(self, formula:EFO1Query):
         pass
 
     @abstractmethod
-    def get_embedding(self, term_name):
+    def get_ent_emb(self, term_name, begin_index, end_index):
         pass
 
     @abstractmethod
-    def estimate_lifted_embeddings(self):
+    def get_rel_emb(self, pred_name, begin_index, end_index):
+        pass
+
+    @abstractmethod
+    def estimate_variable_embeddings(self):
         pass
 
 
@@ -62,7 +66,7 @@ class Reasoner:
             return run_in_batch(batch_size=self.formula.num_instances)
 
     def batch_evaluate_truth_values(self,
-                                    free_var_emb_dict,
+                                    var_emb_assignment,
                                     formula,
                                     begin_index,
                                     end_index):
@@ -80,12 +84,12 @@ class Reasoner:
         if isinstance(formula, Conjunction):
             return self.tnorm.conjunction(
                 self.batch_evaluate_truth_values(
-                    free_var_emb_dict,
+                    var_emb_assignment,
                     formula.formulas[0],
                     begin_index,
                     end_index),
                 self.batch_evaluate_truth_values(
-                    free_var_emb_dict,
+                    var_emb_assignment,
                     formula.formulas[1],
                     begin_index,
                     end_index))
@@ -93,12 +97,12 @@ class Reasoner:
         elif isinstance(formula, Disjunction):
             return self.tnorm.disjunction(
                 self.batch_evaluate_truth_values(
-                    free_var_emb_dict,
+                    var_emb_assignment,
                     formula.formulas[0],
                     begin_index,
                     end_index),
                 self.batch_evaluate_truth_values(
-                    free_var_emb_dict,
+                    var_emb_assignment,
                     formula.formulas[1],
                     begin_index,
                     end_index))
@@ -106,28 +110,26 @@ class Reasoner:
         elif isinstance(formula, Negation):
             return self.tnorm.negation(
                 self.batch_evaluate_truth_values(
-                    free_var_emb_dict,
+                    var_emb_assignment,
                     formula.formula,
                     begin_index,
                     end_index))
 
-        elif isinstance(formula, BinaryPredicate):
+        elif isinstance(formula, Atomic):
             head_name = formula.head.name
-            if free_var_emb_dict and formula.head.is_free:
-                head_emb = free_var_emb_dict[head_name]
+            if head_name in var_emb_assignment:
+                head_emb = var_emb_assignment[head_name]
             else:
-                head_emb = self.get_embedding(
-                    head_name, begin_index, end_index)
+                head_emb = self.get_ent_emb(head_name, begin_index, end_index)
 
             tail_name = formula.tail.name
-            if free_var_emb_dict and formula.tail.is_free:
-                tail_emb = free_var_emb_dict[tail_name]
+            if tail_name in var_emb_assignment:
+                tail_emb = var_emb_assignment[tail_name]
             else:
-                tail_emb = self.get_embedding(
-                    tail_name, begin_index, end_index)
+                tail_emb = self.get_ent_emb(tail_name, begin_index, end_index)
 
-            rel_emb = self.nbp.get_relation_emb(
-                formula.relation_id_list[begin_index: end_index])
+            pred_name = formula.name
+            rel_emb = self.get_rel_emb(pred_name, begin_index, end_index)
 
             batch_score = self.nbp.embedding_score(head_emb, rel_emb, tail_emb)
             batch_truth_value = self.nbp.score2truth_value(batch_score)
@@ -152,7 +154,7 @@ class GradientEFOReasoner(Reasoner):
         self.tnorm: Tnorm = tnorm
 
         # determined during the optimization
-        self.formula: FirstOrderFormula = None
+        self.formula: EFO1Query = None
         self.term_local_emb_dict = {}
         self._last_ground_free_var_emb = {}
 
@@ -172,7 +174,7 @@ class GradientEFOReasoner(Reasoner):
                  sigma)
         return rm
 
-    def initialize_with_formula(self, formula: FirstOrderFormula):
+    def initialize_with_query(self, formula: EFO1Query):
         self.formula = formula
         self.term_local_emb_dict = {
             term_name: None
@@ -204,27 +206,24 @@ class GradientEFOReasoner(Reasoner):
                        for term_name in self.formula.term_dict)
 
         while not check_all_var_initialized():
-            for rel_name, pred in self.formula.predicate_dict.items():
+            for atomic_name, pred in self.formula.atomic_dict.items():
+                pred_name = pred.name
                 head_name, tail_name = pred.head.name, pred.tail.name
 
                 if self.term_initialized(head_name) and not self.term_initialized(tail_name):
-                    head_emb = self.get_embedding(
+                    head_emb = self.get_ent_emb(
                         head_name
                     )
-                    rel_emb = self.nbp.get_relation_emb(
-                        self.formula.pred_grounded_relation_id_dict[rel_name]
-                    )
+                    rel_emb = self.get_rel_emb(pred_name)
 
                     tail_emb = self.nbp.estimate_tail_emb(head_emb, rel_emb)
                     self.set_local_embedding(tail_name, tail_emb)
 
                 elif not self.term_initialized(head_name) and self.term_initialized(tail_name):
-                    tail_emb = self.get_embedding(
+                    tail_emb = self.get_ent_emb(
                         head_name
                     )
-                    rel_emb = self.nbp.get_relation_emb(
-                        self.formula.pred_grounded_relation_id_dict[rel_name]
-                    )
+                    rel_emb = self.get_rel_emb(pred_name)
 
                     head_emb = self.nbp.estimate_head_emb(tail_emb, rel_emb)
                     # formula.set_var_local_embedding(head_name, head_emb)
@@ -233,7 +232,6 @@ class GradientEFOReasoner(Reasoner):
                 else:
                     continue
         return
-
 
     def initialize_variable_embeddings_v2(self):
         # normal initialization
@@ -248,24 +246,10 @@ class GradientEFOReasoner(Reasoner):
             init_vec = torch.normal(0, 1e-3, symb_emb.shape, device=symb_emb.device)
             self.set_local_embedding(term_name, init_vec)
 
-    # ? to check the free_var treatment
-    def get_embedding(self,
-                      term_name,
-                      begin_index=None,
-                      end_index=None):
-        """
-            free_var_treatment:
-                (implemented)
-                - all: evaluate across all candidates
-                - lift: lift the free variable as the existential variable
-                - groundans:{k}: ground the free variable into k random answers
-                - groundnoisy:{k}: ground the free variable into k noisy variables
-                (to implement)
-                - groundansfull: ground the answers to a full answer set
-                - groundbarycenterfull: ground the barycenter of the answer set
-                - groundbarycenter: ground the barycenter of the answer set
-                - groundbarycenter: ground the barycenter of the answer set
-        """
+    def get_ent_emb(self,
+                    term_name,
+                    begin_index=None,
+                    end_index=None):
         if self.formula.has_term_grounded_entity_id_list(term_name):
             emb = self.nbp.get_entity_emb(
                 self.formula.get_term_grounded_entity_id_list(term_name))
@@ -278,16 +262,26 @@ class GradientEFOReasoner(Reasoner):
             emb = emb[begin_index: end_index]
         return emb
 
-    def estimate_lifted_embeddings(self):
+    def get_rel_emb(self,
+                    term_name,
+                    begin_index=None,
+                    end_index=None):
+        emb = self.nbp.get_relation_emb(
+            self.formula.get_pred_grounded_relation_id_list(term_name))
+        if begin_index is not None and end_index is not None:
+            emb = emb[begin_index: end_index]
+        return emb
+
+    def estimate_variable_embeddings(self):
         self.initialize_variable_embeddings()
         evar_local_emb = [
-            self.get_embedding(term_name)
+            self.get_ent_emb(term_name)
             for term_name in self.formula.existential_variable_dict
             if self.term_local_emb_dict[term_name] is not None]
 
         for term_name in self.formula.free_variable_dict:
             assert self.term_local_emb_dict[term_name] is not None
-            emb = self.get_embedding(term_name)
+            emb = self.get_ent_emb(term_name)
             evar_local_emb.append(emb)
 
 
@@ -441,12 +435,12 @@ class GNNEFOReasoner(Reasoner):
                  depth_shift=0):
         self.nbp = nbp
         self.lgnn_layer = lgnn_layer        # formula dependent
-        self.formula: FirstOrderFormula = None
+        self.formula: EFO1Query = None
         self.depth_shift = depth_shift
         self.term_local_emb_dict = {}
         self._last_ground_free_var_emb = {}
 
-    def initialize_with_formula(self, formula):
+    def initialize_with_query(self, formula):
         self.formula = formula
         self.term_local_emb_dict = {term_name: None
                                     for term_name in self.formula.term_dict}
@@ -475,14 +469,14 @@ class GNNEFOReasoner(Reasoner):
                 raise KeyError(f"term name {term_name} cannot be initialized")
             self.set_local_embedding(term_name, emb)
 
-    def estimate_lifted_embeddings(self):
+    def estimate_variable_embeddings(self):
         self.initialize_local_embedding()
 
-        predicates = self.formula.predicate_dict.values()
+        predicates = self.formula.atomic_dict.values()
         term_emb_dict = self.term_local_emb_dict
         pred_emb_dict = {}
         inv_pred_emb_dict = {}
-        for pred_name in self.formula.predicate_dict:
+        for pred_name in self.formula.atomic_dict:
             if self.formula.has_pred_grounded_relation_id_list(pred_name):
                 relation_id = self.formula.get_pred_grounded_relation_id_list(pred_name)
                 emb = self.nbp.get_relation_emb(relation_id, inv=False)

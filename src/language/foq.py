@@ -62,7 +62,7 @@ def check_ldict(ldict):
         assert 'name' in args
         assert 'state' in args
         assert 'entity_id_list' in args
-    if op == BinaryPredicate.op:
+    if op == Atomic.op:
         assert 'name' in args
         assert 'relation_id_list' in args
         check_ldict(args['term1'])
@@ -97,9 +97,6 @@ class Lobject:
         check_ldict(self.to_ldict())
         return json.dumps(self.to_ldict(), indent=1)
 
-    @abstractmethod
-    def get_predicates(self) -> Dict[str, 'BinaryPredicate']:
-        pass
 
 
 class Term(Lobject):
@@ -115,6 +112,7 @@ class Term(Lobject):
         self.state = state
         self.name = name
         self.parent_predicate = None
+        # no data is stored in the term
         self.entity_id_list = []
 
     @classmethod
@@ -136,6 +134,7 @@ class Term(Lobject):
                      'entity_id_list': self.entity_id_list}}
         return ldict
 
+    @property
     def lstr(self) -> str:
         return self.name
 
@@ -167,8 +166,8 @@ class Formula(Lobject):
     @staticmethod
     def parse(ldict):
         op = ldict['op']
-        if op == BinaryPredicate.op:
-            return BinaryPredicate.parse(ldict)
+        if op == Atomic.op:
+            return Atomic.parse(ldict)
         elif op == Negation.op:
             return Negation.parse(ldict)
         elif op == Conjunction.op:
@@ -178,12 +177,16 @@ class Formula(Lobject):
         else:
             raise NotImplementedError("Unsupported Operator")
 
+    @abstractmethod
+    def get_atomics(self) -> Dict[str, 'Atomic']:
+        pass
+
     @property
-    def num_predicates(self):
+    def num_atomics(self):
         pass
 
 
-class BinaryPredicate(Formula):
+class Atomic(Formula):
     op = 'pred'
 
     def __init__(self,
@@ -193,8 +196,10 @@ class BinaryPredicate(Formula):
         self.name = name
         self.head = head
         self.tail = tail
-        self.relation_id_list = []
-        self.skolem_negation = False
+        # no data is stored in the atomic
+        # self.relation_id_list = []
+        # indicates whether there is a negator associated to this atomic
+        self.negated = False
 
     @classmethod
     def parse(cls, ldict):
@@ -202,14 +207,14 @@ class BinaryPredicate(Formula):
         assert op == cls.op
         args = ldict['args']
 
-        name = args['name']
+        name = args['name']  # name indicates the name of relation
         head = Term.parse(args['head'])
         tail = Term.parse(args['tail'])
-        object = cls(name=name, head=head, tail=tail)
-        object.relation_id_list = args['relation_id_list']
-        head.parent_predicate = object
-        tail.parent_predicate = object
-        return object
+        obj = cls(name=name, head=head, tail=tail)
+        obj.relation_id_list = args['relation_id_list']
+        head.parent_predicate = obj
+        tail.parent_predicate = obj
+        return obj
 
     def to_ldict(self):
         obj = {
@@ -223,19 +228,20 @@ class BinaryPredicate(Formula):
         }
         return obj
 
+    @property
     def lstr(self):
         lstr = f"{self.name}({self.head.name},{self.tail.name})"
         return lstr
 
-    def get_predicates(self) -> Dict[str, 'BinaryPredicate']:
-        ans = {self.name: self}
+    def get_atomics(self) -> Dict[str, 'Atomic']:
+        ans = {self.lstr: self}
         return ans
 
     def get_terms(self):
         return [self.head, self.tail]
 
     @property
-    def num_predicates(self):
+    def num_atomics(self):
         return 1
 
 
@@ -266,18 +272,19 @@ class Negation(Connective):
         }
         return obj
 
+    @property
     def lstr(self) -> str:
-        lstr = f"!({self.formula.lstr()})"
+        lstr = f"!({self.formula.lstr})"
         return lstr
 
-    def get_predicates(self) -> Dict[str, 'BinaryPredicate']:
+    def get_atomics(self) -> Dict[str, 'Atomic']:
         ans = {}
-        ans.update(self.formula.get_predicates())
+        ans.update(self.formula.get_atomics())
         return ans
 
     @property
-    def num_predicates(self):
-        return self.formula.num_predicates
+    def num_atomics(self):
+        return self.formula.num_atomics
 
 
 class Conjunction(Connective):
@@ -303,19 +310,20 @@ class Conjunction(Connective):
         }
         return obj
 
+    @property
     def lstr(self):
-        lstr = "&".join(f"({f.lstr()})" for f in self.formulas)
+        lstr = "&".join(f"({f.lstr})" for f in self.formulas)
         return lstr
 
-    def get_predicates(self) -> Dict[str, 'BinaryPredicate']:
+    def get_atomics(self) -> Dict[str, 'Atomic']:
         ans = {}
         for f in self.formulas:
-            ans.update(f.get_predicates())
+            ans.update(f.get_atomics())
         return ans
 
     @property
-    def num_predicates(self):
-        return sum([formula.num_predicates for formula in self.formulas])
+    def num_atomics(self):
+        return sum([formula.num_atomics for formula in self.formulas])
 
 
 class Disjunction(Connective):
@@ -341,31 +349,34 @@ class Disjunction(Connective):
         }
         return obj
 
+    @property
     def lstr(self):
-        lstr = "|".join(f"({f.lstr()})" for f in self.formulas)
+        lstr = "|".join(f"({f.lstr})" for f in self.formulas)
         return lstr
 
-    def get_predicates(self) -> Dict[str, 'BinaryPredicate']:
+    def get_atomics(self) -> Dict[str, 'Atomic']:
         ans = {}
         for f in self.formulas:
-            ans.update(f.get_predicates())
+            ans.update(f.get_atomics())
         return ans
 
     @property
-    def num_predicates(self):
-        return sum([formula.num_predicates for formula in self.formulas])
+    def num_atomics(self):
+        return sum([formula.num_atomics for formula in self.formulas])
 
 
-class FirstOrderFormula:
+class EFO1Query:
     """
     The first order formula
-    it also includes information about the quantifiers
 
     self.formula is parsed from the formula and provide the operator tree for
         evaluation
-    self.predicate_dict stores each predicates by its name, which are edges
-    self.symbol_dict stores each symbol by its name
-    self.variable_dict stores each variable by its name
+    self.atomic_dict stores each predicates by its name, which are edges
+    self.term_dict stores each symbol by its name
+
+    self.pred_grounded_relation_id_dict stores the relation id for each predicate
+    self.term_grounded_entity_id_dict stores the entity id for each symbol (term)
+
 
     self.easy_answer_list list for easy answers
     self.hard_answer_list list for hard answers
@@ -383,7 +394,7 @@ class FirstOrderFormula:
         self.grounding_dict_list = []
 
         # update internal storage
-        self.predicate_dict: Dict[str, BinaryPredicate] = {}
+        self.atomic_dict: Dict[str, Atomic] = {}
         self.pred_grounded_relation_id_dict: Dict[str, List] = {}
 
         self.term_dict: Dict[str, Term] = {}
@@ -394,26 +405,26 @@ class FirstOrderFormula:
         self._init_query()
 
     def _init_query(self):
-        self.predicate_dict = self.formula.get_predicates()
-        self.pred_grounded_relation_id_dict = {
-            name: predicate.relation_id_list
-            for name, predicate in self.predicate_dict.items()
-        }
+        # handle predicates and relations
+        self.atomic_dict = self.formula.get_atomics()
+        self.pred_grounded_relation_id_dict = {}
+        for lstr, atomic in self.atomic_dict.items():
+            pred_name = atomic.name
+            self.pred_grounded_relation_id_dict[pred_name] = []
 
+
+        # handle terms
         self.term_dict = {}
-        for _, pred in self.predicate_dict.items():
+        for _, pred in self.atomic_dict.items():
             for t in pred.get_terms():
                 self.term_dict[t.name] = t
+        for name, term in self.term_dict.items():
+            self.term_grounded_entity_id_dict[name] = []
 
-        # self.term_local_embedding_dict = {name: None
-                #   for name in self.term_dict}
-        self.term_grounded_entity_id_dict = {name: term.entity_id_list
-                                             for name, term in self.term_dict.items()}
-
-        for pred_name, predicate in self.predicate_dict.items():
+        for atomic_lstr, predicate in self.atomic_dict.items():
             head, tail = predicate.get_terms()
-            self.term_name2predicate_name_dict[head.name].append(pred_name)
-            self.term_name2predicate_name_dict[tail.name].append(pred_name)
+            self.term_name2predicate_name_dict[head.name].append(atomic_lstr)
+            self.term_name2predicate_name_dict[tail.name].append(atomic_lstr)
 
 
     def append_relation_and_symbols(self, append_dict):
@@ -480,7 +491,7 @@ class FirstOrderFormula:
 
     @property
     def lstr(self):
-        return self.formula.lstr()
+        return self.formula.lstr
 
     @property
     def num_instances(self):
@@ -490,15 +501,16 @@ class FirstOrderFormula:
             assert num_instances == len(
                 self.get_term_grounded_entity_id_list(k))
 
-        for k in self.predicate_dict:
+        for k in self.atomic_dict:
+            pred_name = self.atomic_dict[k].name
             assert num_instances == len(
-                self.get_pred_grounded_relation_id_list(k))
+                self.get_pred_grounded_relation_id_list(pred_name))
 
         return len(self.easy_answer_list)
 
     @property
     def num_predicates(self):
-        return self.formula.num_predicates
+        return self.formula.num_atomics
 
     @property
     def quantifier_rank(self):

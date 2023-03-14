@@ -6,7 +6,7 @@ from typing import Dict
 
 from tqdm import tqdm
 
-from src.language import fof
+from src.language import foq
 from src.language.grammar import parse_lstr_to_lformula
 from src.structure.knowledge_graph_index import KGIndex
 from src.structure.knowledge_graph import KnowledgeGraph
@@ -79,7 +79,7 @@ beta_lstr2name = {}
 for s, n in zip(beta_lstr_list, beta_names):
     print(s, n)
     beta_lstr2name[
-        parse_lstr_to_lformula(s).lstr()
+        parse_lstr_to_lformula(s).lstr
     ] = n
 
 
@@ -203,7 +203,7 @@ def convert_beta_folder(beta_folder, output_folder):
             continue
 
         lformula = parse_lstr_to_lformula(lstr)
-        folf = fof.FirstOrderFormula(lformula)
+        folf = foq.EFO1Query(lformula)
         print(folf.formula.lstr())
 
         lstr_xy_dict[lstr] = []
@@ -234,7 +234,7 @@ def convert_beta_folder(beta_folder, output_folder):
         samples = list(valid_queries[key])
 
         lformula = parse_lstr_to_lformula(lstr)
-        folf = fof.FirstOrderFormula(lformula)
+        folf = foq.EFO1Query(lformula)
         print(folf.formula.lstr())
 
         lstr_xy_dict[lstr] = []
@@ -267,7 +267,7 @@ def convert_beta_folder(beta_folder, output_folder):
         samples = list(test_queries[key])
 
         lformula = parse_lstr_to_lformula(lstr)
-        folf = fof.FirstOrderFormula(lformula)
+        folf = foq.EFO1Query(lformula)
         print(folf.formula.lstr())
 
         lstr_xy_dict[lstr] = []
