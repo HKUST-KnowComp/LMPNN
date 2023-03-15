@@ -245,6 +245,15 @@ python train_lmpnn.py \
   --checkpoint_path pretrain/cqd/FB15k-237-model-rank-1000-epoch-100-1602508358.pt
 ```
 
+## Summarize the results from log files
+
+We use script `read_eval_from_log.py` to summarize the results from the log file.
+
+For example, the results on FB15k-237 in file `log/FB15k-237/pretrain_complex1000-default/output.log` can be summarized by the following piece of code.
+```bash
+python3 read_eval_from_log.py --log_file log/FB15k-237/pretrain_complex1000-default/output.log
+```
+
 ## Citing this paper
 
 ```bibtex

@@ -37,7 +37,6 @@ def filter_lines(lines, key_str):
             print("Error in ", line)
     return rec
 
-
 def evaluation_to_tables(line, collect_metrics=metrics, verbose=True):
     data = defaultdict(list)
     for m in collect_metrics:
