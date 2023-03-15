@@ -204,10 +204,11 @@ Sample usage at FB15k-237
 ```bash
 python train_lmpnn.py \
   --task_folder data/FB15k-237-betae \
+  --output_dir log/FB15k-237/pretrain_complex1000-default \
   --checkpoint_path pretrain/cqd/FB15k-237-model-rank-1000-epoch-100-1602508358.pt \
   --embedding_dim 1000 \
-  --device cuda:0 \
-  --output_dir log/fb15k-237/pretrain_complex1000-default
+  --batch_size 2048 \
+  --device cuda:0
 ```
 
 Sample usage at FB15k

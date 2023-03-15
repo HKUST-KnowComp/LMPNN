@@ -5,7 +5,6 @@ import os
 import os.path as osp
 import random
 from collections import defaultdict
-from pprint import pprint
 
 import numpy as np
 import torch
@@ -46,20 +45,18 @@ parser.add_argument("--batch_size", type=int, default=1024, help="batch size for
 parser.add_argument("--batch_size_eval_truth_value", type=int, default=32, help="batch size for evaluating the truth value")
 parser.add_argument("--batch_size_eval_dataloader", type=int, default=5000, help="batch size for evaluation")
 
-
 # model, defines the neural binary predicate
 parser.add_argument("--model_name", type=str, default='complex')
+parser.add_argument("--checkpoint_path", required=True, type=str, help="path to the KGE checkpoint")
 parser.add_argument("--embedding_dim", type=int, default=1000)
 parser.add_argument("--margin", type=float, default=10)
 parser.add_argument("--scale", type=float, default=1)
 parser.add_argument("--p", type=int, default=1)
-parser.add_argument("--checkpoint_path")
 
 # optimization for the entire process
 parser.add_argument("--optimizer", type=str, default='AdamW')
 parser.add_argument("--epoch", type=int, default=100)
 parser.add_argument("--learning_rate", type=float, default=1e-4)
-# need justification
 parser.add_argument("--weight_decay", type=float, default=1e-4)
 parser.add_argument("--noisy_sample_size", type=int, default=128)
 parser.add_argument("--temp", type=float, default=0.05)
@@ -215,11 +212,6 @@ def evaluate_by_search_emb_then_rank_truth_value(
         dataloader,
         nbp: NeuralBinaryPredicate,
         reasoner: Reasoner):
-    """
-    Evaluation used in CQD, two phase computation
-    1. continuous optimiation of embeddings quant. + free
-    2. evaluate all sentences with intermediate optimized
-    """
     # first level key: lstr
     # second level key: metric name
     metric = defaultdict(lambda: defaultdict(list))
@@ -269,11 +261,6 @@ def evaluate_by_nearest_search(
         dataloader,
         nbp: NeuralBinaryPredicate,
         reasoner: GradientEFOReasoner):
-    """
-    Evaluation used by nearest neighbor
-    1. continuous optimiation of embeddings quant. + free
-    2. evaluate all sentences with intermediate optimized
-    """
     # first level key: lstr
     # second level key: metric name
     metric = defaultdict(lambda: defaultdict(list))
@@ -298,14 +285,12 @@ def evaluate_by_nearest_search(
                 for score_name in metric[lstr]:
                     sum_metric[lstr2name[lstr]][score_name] = float(
                         np.mean(metric[lstr][score_name]))
-            pprint(sum_metric)
 
         postfix = {}
         for name in ['1p', '2p', '3p', '2i', 'inp']:
             if name in sum_metric:
                 postfix[name + '_hit3'] = sum_metric[name]['hit3']
         torch.cuda.empty_cache()
-
 
     sum_metric['epoch'] = e
     logging.info(f"[{desc}][final] {json.dumps(sum_metric)}")
@@ -408,7 +393,7 @@ if __name__ == "__main__":
         reasoner = GNNEFOReasoner(nbp, lgnn_layer, depth_shift=args.depth_shift)
         print(lgnn_layer)
         optimizer_estimator = getattr(torch.optim, args.optimizer)(
-            list(lgnn_layer.parameters()),
+            lgnn_layer.parameters(),
             lr=args.learning_rate,
             weight_decay=args.weight_decay)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer_estimator, 50, 0.1)
@@ -422,11 +407,11 @@ if __name__ == "__main__":
                                            valid_dataloader, nbp, reasoner)
                 evaluate_by_nearest_search(e, f"NN evaluate test set epoch {e+1}",
                                            test_dataloader, nbp, reasoner)
-                last_name = os.path.join(args.output_dir,
-                                        f'lmpnn-last.ckpt')
-                torch.save(lgnn_layer.state_dict(), last_name)
-            if (e+1) % 20 == 0:
+
                 save_name = os.path.join(args.output_dir,
                                         f'lmpnn-{e+1}.ckpt')
                 torch.save(lgnn_layer.state_dict(), save_name)
-                logging.info(f"lmpnn at epoch {e+1} is saved to {save_name}")
+
+                last_name = os.path.join(args.output_dir,
+                                        f'lmpnn-last.ckpt')
+                torch.save(lgnn_layer.state_dict(), last_name)

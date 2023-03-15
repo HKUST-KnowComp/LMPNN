@@ -363,7 +363,6 @@ class LogicalGNNLayer(nn.Module):
             sign = -1 if pred.negated else 1
 
             pred_emb = pred_emb_dict[pred.name]
-
             if head_emb.size(0) == 1:
                 head_emb = head_emb.expand(pred_emb.size(0), -1)
             if tail_emb.size(0) == 1:
@@ -371,17 +370,13 @@ class LogicalGNNLayer(nn.Module):
 
             assert head_emb.size(0) == pred_emb.size(0)
             assert tail_emb.size(0) == pred_emb.size(0)
-
             term_collect_embs_dict[tail_name].append(
                 sign * self.nbp.estimate_tail_emb(head_emb, pred_emb)
             )
 
-            # term_collect_embs_dict[head_name].append(
-            #     sign * self.nbp.estimate_head_emb(tail_emb, pred_emb)
-            # )
-            pred_emb = inv_pred_emb_dict[pred.name]
+            inv_pred_emb = inv_pred_emb_dict[pred.name]
             term_collect_embs_dict[head_name].append(
-                sign * self.nbp.estimate_tail_emb(tail_emb, pred_emb)
+                sign * self.nbp.estimate_head_emb(tail_emb, inv_pred_emb)
             )
         return term_collect_embs_dict
 
@@ -452,7 +447,6 @@ class GNNEFOReasoner(Reasoner):
 
     def estimate_variable_embeddings(self):
         self.initialize_local_embedding()
-
         predicates = self.formula.atomic_dict.values()
         term_emb_dict = self.term_local_emb_dict
         pred_emb_dict = {}

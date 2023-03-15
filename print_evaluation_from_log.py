@@ -1,15 +1,10 @@
 import argparse
 from collections import defaultdict
-import os
 import pandas as pd
 pd.options.display.float_format = '{:>5.2f}'.format
-import numpy as np
 
 import json
-from pprint import pprint
 
-from scipy.ndimage.filters import gaussian_filter1d
-from train_lmpnn import name2lstr
 
 metrics = ['mrr', 'hit1', 'hit3', 'hit10']
 
@@ -18,7 +13,8 @@ Negation_queries = ['2in', '3in', 'inp', 'pin', 'pni']
 Disjunction_queries = ['2u', 'up']
 queries = Conjunction_queries + Disjunction_queries + Negation_queries
 
-filter_width = .1
+parser = argparse.ArgumentParser()
+parser.add_argument('--log_file', type=str, default='log.txt')
 
 def read_log_lines(filename):
     lines = []
@@ -75,6 +71,8 @@ def aggregate_evaluations(lines, key_str, collect_metrics=metrics, out_dir="unna
     return final_df
 
 if __name__ == "__main__":
+    args = parser.parse_args()
 
-    df = aggregate_evaluations(lines, 'NN evaluate valid', collect_metrics=metrics)
-    print(final_df.to_string(col_space=5))
+    lines = read_log_lines(args.log_file)
+    df = aggregate_evaluations(lines, 'NN evaluate valid', collect_metrics=['mrr'])
+    print(df.to_string(col_space=5))
