@@ -376,8 +376,13 @@ class LogicalGNNLayer(nn.Module):
 
             inv_pred_emb = inv_pred_emb_dict[pred.name]
             term_collect_embs_dict[head_name].append(
-                sign * self.nbp.estimate_head_emb(tail_emb, inv_pred_emb)
+                sign * self.nbp.estimate_tail_emb(tail_emb, inv_pred_emb)
             )
+
+            # term_collect_embs_dict[head_name].append(
+            #     sign * self.nbp.estimate_head_emb(tail_emb, pred_emb)
+            # )
+
         return term_collect_embs_dict
 
     def forward(self, init_term_emb_dict, predicates, pred_emb_dict, inv_pred_emb_dict):

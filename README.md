@@ -207,7 +207,6 @@ python train_lmpnn.py \
   --output_dir log/FB15k-237/pretrain_complex1000-default \
   --checkpoint_path pretrain/cqd/FB15k-237-model-rank-1000-epoch-100-1602508358.pt \
   --embedding_dim 1000 \
-  --batch_size 2048 \
   --device cuda:0
 ```
 
@@ -227,8 +226,9 @@ python train_lmpnn.py \
   --checkpoint_path pretrain/cqd/NELL-model-rank-1000-epoch-100-1602499096.pt \
   --device cuda:2 \
   --batch_size 512 \
-  --batch_size_eval_dataloader 128 \
-  --output_dir log/nell/lmpgnn-complex1k-default
+  --batch_size_eval_dataloader 64 \
+  --batch_size_eval_truth_value 8 \
+  --output_dir log/NELL/lmpgnn-complex1k-default
 ```
 
 ## Answering Existential First Order (EFO) queries
