@@ -202,7 +202,7 @@ python convert_cqd_pretrain_ckpts.py
 
 Sample usage at FB15k-237
 ```bash
-python train_lmpnn.py \
+python3 train_lmpnn.py \
   --task_folder data/FB15k-237-betae \
   --output_dir log/FB15k-237/lmpnn-complex1k-default \
   --checkpoint_path pretrain/cqd/FB15k-237-model-rank-1000-epoch-100-1602508358.pt \
@@ -221,7 +221,7 @@ python3 train_lmpnn.py \
 
 Sample usage at NELL
 ```bash
-python train_lmpnn.py \
+python3 train_lmpnn.py \
   --task_folder data/NELL-betae \
   --checkpoint_path pretrain/cqd/NELL-model-rank-1000-epoch-100-1602499096.pt \
   --device cuda:2 \

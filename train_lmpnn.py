@@ -399,17 +399,17 @@ if __name__ == "__main__":
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer_estimator, 50, 0.1)
 
 
-        for e in range(args.epoch):
+        for e in range(1, 1+args.epoch):
             train_LMPNN(f"epoch {e}", train_dataloader, nbp, reasoner, optimizer_estimator, args)
             scheduler.step()
-            if (e+1) % 1 == 0:
-                evaluate_by_nearest_search(e, f"NN evaluate validate set epoch {e+1}",
+            if e % 5 == 0:
+                evaluate_by_nearest_search(e, f"NN evaluate validate set epoch {e}",
                                            valid_dataloader, nbp, reasoner)
-                evaluate_by_nearest_search(e, f"NN evaluate test set epoch {e+1}",
+                evaluate_by_nearest_search(e, f"NN evaluate test set epoch {e}",
                                            test_dataloader, nbp, reasoner)
 
                 save_name = os.path.join(args.output_dir,
-                                        f'lmpnn-{e+1}.ckpt')
+                                        f'lmpnn-{e}.ckpt')
                 torch.save(lgnn_layer.state_dict(), save_name)
 
                 last_name = os.path.join(args.output_dir,

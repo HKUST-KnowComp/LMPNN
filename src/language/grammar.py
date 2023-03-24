@@ -96,7 +96,7 @@ def parse_lstr_to_lformula(lstr: str) -> Formula:
         sub_formula = parse_lstr_to_lformula(sub_lstr)
         if sub_formula.op == 'pred':
             sub_formula.negated = True
-        return Negation(formula=sub_formula)
+            return Negation(formula=sub_formula)
 
     binary_operator, binary_operator_index = identify_top_binary_operator(_lstr)
 

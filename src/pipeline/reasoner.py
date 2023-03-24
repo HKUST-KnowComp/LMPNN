@@ -375,9 +375,12 @@ class LogicalGNNLayer(nn.Module):
                 sign * self.nbp.estimate_tail_emb(head_emb, pred_emb)
             )
 
-            inv_pred_emb = inv_pred_emb_dict[atomic.relation]
+            # inv_pred_emb = inv_pred_emb_dict[atomic.relation]
+            # term_collect_embs_dict[head_name].append(
+            #     sign * self.nbp.estimate_tail_emb(tail_emb, inv_pred_emb)
+            # )
             term_collect_embs_dict[head_name].append(
-                sign * self.nbp.estimate_tail_emb(tail_emb, inv_pred_emb)
+                sign * self.nbp.estimate_head_emb(tail_emb, pred_emb)
             )
 
         return term_collect_embs_dict
