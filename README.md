@@ -20,8 +20,9 @@ My conda environment could be found at `ENV1.yaml`
 ** This repo is under construction for usability. The key results for the paper can already be reproduced. **
 
 Todo features:
+- [x] Implement CQD CO
+- [ ] Implement CQD BEAM
 - [ ] Introduce several ways to train KGE checkpoints with released repositories, which can be backbones for LMPNN.
-- [x] Run CQD CO
 
 ## Preparation
 
@@ -218,6 +219,7 @@ python3 train_lmpnn.py \
   --task_folder data/FB15k-betae \
   --checkpoint_path pretrain/cqd/FB15k-model-rank-1000-epoch-100-1602520745.pt \
   --device cuda:1 \
+  --hidden_dim 8192 \
   --output_dir log/FB15k/lmpnn-complex1k-default
 ```
 
@@ -227,9 +229,11 @@ python3 train_lmpnn.py \
   --task_folder data/NELL-betae \
   --checkpoint_path pretrain/cqd/NELL-model-rank-1000-epoch-100-1602499096.pt \
   --device cuda:2 \
+  --hidden_dim 8192 \
+  --temp 0.1 \
   --batch_size 512 \
-  --batch_size_eval_dataloader 64 \
-  --batch_size_eval_truth_value 8 \
+  --batch_size_eval_dataloader 8 \
+  --batch_size_eval_truth_value 1 \
   --output_dir log/NELL/lmpnn-complex1k-default
 ```
 
