@@ -95,8 +95,8 @@ def parse_lstr_to_lformula(lstr: str) -> Formula:
         sub_lstr = _lstr[1:]
         sub_formula = parse_lstr_to_lformula(sub_lstr)
         if sub_formula.op == 'pred':
-            sub_formula.skolem_negation = True
-        return Negation(formula=sub_formula)
+            sub_formula.negated = True
+            return Negation(formula=sub_formula)
 
     binary_operator, binary_operator_index = identify_top_binary_operator(_lstr)
 
@@ -119,12 +119,12 @@ def parse_lstr_to_lformula(lstr: str) -> Formula:
         term2 = parse_term(term2_name)
         if predicate_name.isnumeric():
             predicate_id = int(predicate_name)
-            predicate = Atomic(name="predicate_by_id",
+            predicate = Atomic(relation=f"predicate_id={predicate_id}",
                                         head=term1,
                                         tail=term2)
             predicate.relation_id_list.append(predicate_id)
         else:
-            predicate = Atomic(name=predicate_name,
+            predicate = Atomic(relation=predicate_name,
                                         head=term1,
                                         tail=term2)
         return predicate

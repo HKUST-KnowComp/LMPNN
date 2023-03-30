@@ -113,7 +113,6 @@ class Term(Lobject):
         self.name = name
         self.parent_predicate = None
         # no data is stored in the term
-        self.entity_id_list = []
 
     @classmethod
     def parse(cls, ldict):
@@ -190,10 +189,10 @@ class Atomic(Formula):
     op = 'pred'
 
     def __init__(self,
-                 name: str,
+                 relation: str,
                  head: Term,
                  tail: Term) -> None:
-        self.name = name
+        self.relation = relation
         self.head = head
         self.tail = tail
         # no data is stored in the atomic
@@ -230,7 +229,7 @@ class Atomic(Formula):
 
     @property
     def lstr(self):
-        lstr = f"{self.name}({self.head.name},{self.tail.name})"
+        lstr = f"{self.relation}({self.head.name},{self.tail.name})"
         return lstr
 
     def get_atomics(self) -> Dict[str, 'Atomic']:
@@ -400,7 +399,7 @@ class EFO1Query:
         self.term_dict: Dict[str, Term] = {}
         self.term_grounded_entity_id_dict: Dict[str, List] = {}
 
-        self.term_name2predicate_name_dict: Dict[str, str] = defaultdict(list)
+        self.term_name2atomic_name_list: Dict[str, str] = defaultdict(list)
         # run initialization
         self._init_query()
 
@@ -408,23 +407,22 @@ class EFO1Query:
         # handle predicates and relations
         self.atomic_dict = self.formula.get_atomics()
         self.pred_grounded_relation_id_dict = {}
-        for lstr, atomic in self.atomic_dict.items():
-            pred_name = atomic.name
-            self.pred_grounded_relation_id_dict[pred_name] = []
-
+        for alstr, atomic in self.atomic_dict.items():
+            rel_name = atomic.relation
+            self.pred_grounded_relation_id_dict[rel_name] = []
 
         # handle terms
         self.term_dict = {}
-        for _, pred in self.atomic_dict.items():
-            for t in pred.get_terms():
+        for alstr, atomic in self.atomic_dict.items():
+            for t in atomic.get_terms():
                 self.term_dict[t.name] = t
         for name, term in self.term_dict.items():
             self.term_grounded_entity_id_dict[name] = []
 
-        for atomic_lstr, predicate in self.atomic_dict.items():
-            head, tail = predicate.get_terms()
-            self.term_name2predicate_name_dict[head.name].append(atomic_lstr)
-            self.term_name2predicate_name_dict[tail.name].append(atomic_lstr)
+        for alstr, atomic in self.atomic_dict.items():
+            head, tail = atomic.get_terms()
+            self.term_name2atomic_name_list[head.name].append(alstr)
+            self.term_name2atomic_name_list[tail.name].append(alstr)
 
 
     def append_relation_and_symbols(self, append_dict):

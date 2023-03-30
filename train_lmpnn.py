@@ -10,12 +10,10 @@ import numpy as np
 import torch
 import tqdm
 
-from src.language.tnorm import Tnorm
 from src.language.grammar import parse_lstr_to_lformula
-from src.pipeline.reasoner import (GNNEFOReasoner,
-                                   GradientEFOReasoner,
-                                   LogicalGNNLayer,
-                                   Reasoner)
+from src.language.tnorm import Tnorm
+from src.pipeline import (LMPNNReasoner, GradientEFOReasoner, LogicalMPLayer,
+                          Reasoner)
 from src.structure import get_nbp_class
 from src.structure.knowledge_graph import KnowledgeGraph
 from src.structure.knowledge_graph_index import KGIndex
@@ -383,14 +381,14 @@ if __name__ == "__main__":
             batch_size=args.batch_size,
             shuffle=True,
             num_workers=0)
-        lgnn_layer = LogicalGNNLayer(hidden_dim=args.hidden_dim,
+        lgnn_layer = LogicalMPLayer(hidden_dim=args.hidden_dim,
                                      nbp=nbp,
                                      layers=args.num_layers,
                                      eps=args.eps,
                                      agg_func=args.agg_func)
         lgnn_layer.to(nbp.device)
 
-        reasoner = GNNEFOReasoner(nbp, lgnn_layer, depth_shift=args.depth_shift)
+        reasoner = LMPNNReasoner(nbp, lgnn_layer, depth_shift=args.depth_shift)
         print(lgnn_layer)
         optimizer_estimator = getattr(torch.optim, args.optimizer)(
             lgnn_layer.parameters(),
@@ -399,17 +397,17 @@ if __name__ == "__main__":
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer_estimator, 50, 0.1)
 
 
-        for e in range(args.epoch):
+        for e in range(1, 1+args.epoch):
             train_LMPNN(f"epoch {e}", train_dataloader, nbp, reasoner, optimizer_estimator, args)
             scheduler.step()
-            if (e+1) % 5 == 0:
-                evaluate_by_nearest_search(e, f"NN evaluate validate set epoch {e+1}",
+            if e % 5 == 0:
+                evaluate_by_nearest_search(e, f"NN evaluate validate set epoch {e}",
                                            valid_dataloader, nbp, reasoner)
-                evaluate_by_nearest_search(e, f"NN evaluate test set epoch {e+1}",
+                evaluate_by_nearest_search(e, f"NN evaluate test set epoch {e}",
                                            test_dataloader, nbp, reasoner)
 
                 save_name = os.path.join(args.output_dir,
-                                        f'lmpnn-{e+1}.ckpt')
+                                        f'lmpnn-{e}.ckpt')
                 torch.save(lgnn_layer.state_dict(), save_name)
 
                 last_name = os.path.join(args.output_dir,

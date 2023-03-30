@@ -74,6 +74,6 @@ if __name__ == "__main__":
 
     lines = read_log_lines(args.log_file)
     df = aggregate_evaluations(lines, 'NN evaluate valid', collect_metrics=['mrr'])
-    print(df.to_string(col_space=5))
+    print(df.to_markdown())
     df = aggregate_evaluations(lines, 'NN evaluate test', collect_metrics=['mrr'])
-    print(df.to_string(col_space=5))
+    print(df.to_markdown())
