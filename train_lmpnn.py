@@ -24,28 +24,41 @@ torch.autograd.set_detect_anomaly(True)
 
 from convert_beta_dataset import beta_lstr2name
 
-lstr2name = {parse_lstr_to_lformula(k).lstr: v for k, v in beta_lstr2name.items()}
-name2lstr = {v: k for k, v in lstr2name.items()}
+#newlstr2name = {parse_lstr_to_lformula(k).lstr: v for k, v in beta_lstr2name.items()}
+#name2lstr = {v: k for k, v in newlstr2name.items()}
+newlstr2name = {  # new naming convention: m for multi edge, a for anchor node, c for circle
+    '((r1(s1,e1))&(!(r2(e1,f))))&(r3(s2,f))': 'pni',
+    '((r1(s1,e1))&(r2(e1,f)))&(r3(e1,f))': '2m',
+    '((r1(s1,e1))&(r2(e1,f)))&(!(r3(e1,f)))': '2nm',
+    '(((r1(s1,e1))&(r2(e1,e2)))&(r3(e2,f)))&(r4(e1,e2))': '3mp',
+    '(((r1(s1,e1))&(r2(e1,e2)))&(r3(e2,f)))&(r4(e2,f))': '3pm',
+    '(((r1(s1,e1))&(r2(s2,e1)))&(r3(e1,f)))&(r4(e1,f))': 'im',
+    '(r1(s1,f))&(r2(e1,f))': '2il',
+    '((r1(s1,f))&(r2(s2,f)))&(r3(e1,f))': '3il',
+    '((((r1(s1,e1))&(r2(e1,f)))&(r3(s2,e2)))&(r4(e2,f)))&(r5(e1,e2))': '3c',
+    '(((((r1(s1,e1))&(r2(e1,f)))&(r3(s2,e2)))&(r4(e2,f)))&(r5(e1,e2)))&(r6(e1,f))': '3cm',
+}
+name2newlstr = {v: k for k, v in newlstr2name.items()}
 
-negation_query = [name for name in name2lstr if '!' in name]
+#negation_query = [name for name in name2lstr if '!' in name]
 
 parser = argparse.ArgumentParser()
 
 # base environment
-parser.add_argument("--device", type=str, default="cpu")
+parser.add_argument("--device", type=str, default="cuda:0")
 parser.add_argument("--output_dir", type=str, default='log')
 
 # input task folder, defines knowledge graph, index, and formulas
-parser.add_argument("--task_folder", type=str, default='data/FB15k-237-betae')
+parser.add_argument("--task_folder", type=str, default='data/NELL-EFO1')
 parser.add_argument("--train_queries", action='append')
 parser.add_argument("--eval_queries", action='append')
 parser.add_argument("--batch_size", type=int, default=1024, help="batch size for training")
-parser.add_argument("--batch_size_eval_truth_value", type=int, default=32, help="batch size for evaluating the truth value")
+parser.add_argument("--batch_size_eval_truth_value", type=int, default=1, help="batch size for evaluating the truth value")
 parser.add_argument("--batch_size_eval_dataloader", type=int, default=5000, help="batch size for evaluation")
 
 # model, defines the neural binary predicate
 parser.add_argument("--model_name", type=str, default='complex')
-parser.add_argument("--checkpoint_path", required=True, type=str, help="path to the KGE checkpoint")
+parser.add_argument("--checkpoint_path", default='pretrain/cqd/NELL-model-rank-1000-epoch-100-1602499096.pt', type=str, help="path to the KGE checkpoint")
 parser.add_argument("--embedding_dim", type=int, default=1000)
 parser.add_argument("--margin", type=float, default=10)
 parser.add_argument("--scale", type=float, default=1)
@@ -60,7 +73,7 @@ parser.add_argument("--noisy_sample_size", type=int, default=128)
 parser.add_argument("--temp", type=float, default=0.05)
 
 # reasoning machine
-parser.add_argument("--reasoner", type=str, default='lmpnn', choices=['lmpnn', 'gradient', 'beam'])
+parser.add_argument("--reasoner", type=str, default='gradient', choices=['lmpnn', 'gradient', 'beam'])
 parser.add_argument("--tnorm", type=str, default='product', choices=['product', 'godel'])
 
 # reasoner = gradient
@@ -237,7 +250,7 @@ def evaluate_by_search_emb_then_rank_truth_value(
             sum_metric = defaultdict(dict)
             for lstr in metric:
                 for score_name in metric[lstr]:
-                    sum_metric[lstr2name[lstr]][score_name] = float(
+                    sum_metric[newlstr2name[lstr]][score_name] = float(
                         np.mean(metric[lstr][score_name]))
 
             postfix = {}
@@ -281,7 +294,7 @@ def evaluate_by_nearest_search(
             sum_metric = defaultdict(dict)
             for lstr in metric:
                 for score_name in metric[lstr]:
-                    sum_metric[lstr2name[lstr]][score_name] = float(
+                    sum_metric[newlstr2name[lstr]][score_name] = float(
                         np.mean(metric[lstr][score_name]))
 
         postfix = {}
@@ -331,20 +344,15 @@ if __name__ == "__main__":
     # * load the dataset, by default, we load the dataset to test
     print("loading dataset")
     if args.eval_queries:
-        eval_queries = [name2lstr[tq] for tq in args.eval_queries]
+        #eval_queries = [name2lstr[tq] for tq in args.eval_queries]
+        pass
     else:
-        eval_queries = list(name2lstr.values())
+        eval_queries = list(name2newlstr.values())
     print("eval queries", eval_queries)
 
-    valid_dataloader = QueryAnsweringSeqDataLoader(
-        osp.join(args.task_folder, 'valid-qaa.json'),
-        target_lstr=eval_queries,
-        batch_size=args.batch_size_eval_dataloader,
-        shuffle=False,
-        num_workers=0)
 
     test_dataloader = QueryAnsweringSeqDataLoader(
-        osp.join(args.task_folder, 'test-qaa.json'),
+        osp.join(args.task_folder, 'test_real_EFO1_qaa.json'),
         target_lstr=eval_queries,
         batch_size=args.batch_size_eval_dataloader,
         shuffle=False,
@@ -363,16 +371,14 @@ if __name__ == "__main__":
             reasoning_optimizer=args.reasoning_optimizer)
 
         evaluate_by_search_emb_then_rank_truth_value(
-            -1, f"valuate validate set", valid_dataloader, nbp, reasoner)
-        evaluate_by_search_emb_then_rank_truth_value(
             -1, f"evaluate test set", test_dataloader, nbp, reasoner)
 
     elif args.reasoner == 'lmpnn':
         # for those reasoners with training
         if args.train_queries:
-            train_queries = [name2lstr[tq] for tq in args.train_queries]
+            train_queries = [name2newlstr[tq] for tq in args.train_queries]
         else:
-            train_queries = list(name2lstr.values())
+            train_queries = list(name2newlstr.values())
         print("train queries", train_queries)
 
         train_dataloader = QueryAnsweringSeqDataLoader(
@@ -400,10 +406,8 @@ if __name__ == "__main__":
         for e in range(1, 1+args.epoch):
             train_LMPNN(f"epoch {e}", train_dataloader, nbp, reasoner, optimizer_estimator, args)
             scheduler.step()
-            if e % 5 == 0:
-                evaluate_by_nearest_search(e, f"NN evaluate validate set epoch {e}",
-                                           valid_dataloader, nbp, reasoner)
-                evaluate_by_nearest_search(e, f"NN evaluate test set epoch {e}",
+            if (e+1) % 5 == 0:
+                evaluate_by_nearest_search(e, f"NN evaluate test set epoch {e+1}",
                                            test_dataloader, nbp, reasoner)
 
                 save_name = os.path.join(args.output_dir,
