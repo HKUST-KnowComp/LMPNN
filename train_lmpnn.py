@@ -87,6 +87,7 @@ parser.add_argument("--hidden_dim", type=int, default=4096)
 parser.add_argument("--eps", type=float, default=0.1)
 parser.add_argument("--depth_shift", type=int, default=0)
 parser.add_argument("--agg_func", type=str, default='sum')
+parser.add_argument("--checkpoint_path_lmpnn", type=str, default=None)
 
 
 def train_LMPNN(
@@ -392,6 +393,11 @@ if __name__ == "__main__":
                                      layers=args.num_layers,
                                      eps=args.eps,
                                      agg_func=args.agg_func)
+
+        if args.checkpoint_path_lmpnn:
+            print("loading lmpnn model from", args.checkpoint_path_lmpnn)
+            lgnn_layer.load_state_dict(torch.load(args.checkpoint_path_lmpnn), strict=True)
+
         lgnn_layer.to(nbp.device)
 
         reasoner = LMPNNReasoner(nbp, lgnn_layer, depth_shift=args.depth_shift)
@@ -417,3 +423,9 @@ if __name__ == "__main__":
                 last_name = os.path.join(args.output_dir,
                                         f'lmpnn-last.ckpt')
                 torch.save(lgnn_layer.state_dict(), last_name)
+
+        if args.epoch == 0:
+            evaluate_by_nearest_search(e, f"NN evaluate validate set",
+                                        valid_dataloader, nbp, reasoner)
+            evaluate_by_nearest_search(e, f"NN evaluate test set ",
+                                        test_dataloader, nbp, reasoner)
