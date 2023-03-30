@@ -241,7 +241,7 @@ class GradientEFOReasoner(Reasoner):
 
                 elif not self.term_initialized(head_name) and self.term_initialized(tail_name):
                     tail_emb = self.get_ent_emb(
-                        head_name
+                        tail_name
                     )
                     rel_emb = self.get_rel_emb(pred_name)
 

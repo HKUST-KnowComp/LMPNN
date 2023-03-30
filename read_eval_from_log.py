@@ -14,7 +14,7 @@ Disjunction_queries = ['2u', 'up']
 queries = Conjunction_queries + Disjunction_queries + Negation_queries
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--log_file', type=str, default='log.txt')
+parser.add_argument('--log_file', type=str, default='log/output.log')
 
 def read_log_lines(filename):
     lines = []
@@ -73,7 +73,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     lines = read_log_lines(args.log_file)
-    df = aggregate_evaluations(lines, 'NN evaluate valid', collect_metrics=['mrr'])
-    print(df.to_string(col_space=5))
+    #df = aggregate_evaluations(lines, 'NN evaluate valid', collect_metrics=['mrr'])
+    #print(df.to_string(col_space=5))
     df = aggregate_evaluations(lines, 'NN evaluate test', collect_metrics=['mrr'])
     print(df.to_string(col_space=5))
