@@ -45,10 +45,6 @@ class NeuralBinaryPredicate:
     def get_entity_emb(self, entity_id_or_tensor):
         pass
 
-    @abstractmethod
-    def get_random_entity_embed(self, batch_size):
-        pass
-
     @property
     def entity_embedding(self) -> torch.Tensor:
         pass
@@ -106,6 +102,20 @@ class NeuralBinaryPredicate:
         batch_entity_rankings = torch.cat(entity_ranking_list, dim=0)
         return batch_entity_rankings
 
-    @abstractmethod
-    def entity_pair_scoring(self, emb1, emb2):
-        pass
+    
+    def get_all_entity_scores(self, batch_embedding_input, eval_batch_size=16):
+        batch_size = batch_embedding_input.size(0)
+        begin = 0
+        entity_scoring_list = []
+        for begin in range(0, batch_size, eval_batch_size):
+            end = begin + eval_batch_size
+            eval_batch_embedding_input = batch_embedding_input[begin: end]
+            eval_batch_embedding_input = eval_batch_embedding_input.unsqueeze(-2)
+            # batch_size, all_candidates
+            # ranking score should be the higher the better
+            # ranking_score[entity_id] = the score of {entity_id}
+            ranking_score = self.entity_pair_scoring(eval_batch_embedding_input, self.entity_embedding)
+            entity_scoring_list.append(ranking_score)
+
+        batch_entity_scoring = torch.cat(entity_scoring_list, dim=0)
+        return batch_entity_scoring

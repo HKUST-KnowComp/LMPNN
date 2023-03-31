@@ -17,9 +17,9 @@ class BEAMReasoner(Reasoner):
         self.beam_size = beam_size
         self.nbp = nbp
         self.tnorm: Tnorm = tnorm
+        self.bfs_var_name_levels = None
 
-        # determined during the optimization
-
+        
     def initialize_with_query(self, formula: EFO1Query):
         self.formula = formula
         self.term_local_emb_dict = {
@@ -27,6 +27,9 @@ class BEAMReasoner(Reasoner):
             for term_name in self.formula.term_dict}
 
         self._last_ground_free_var_emb = {}
+
+        # determin variable ordering via a topological sort
+        self.bfs_var_name_levels = self.formula.get_bfs_variable_ordering('f')
 
 
     def set_local_embedding(self, key, tensor):
@@ -45,36 +48,27 @@ class BEAMReasoner(Reasoner):
             uvars: list of universal variables
             fvars: list of free variables
         """
-
-        def check_all_var_initialized():
-            return all(self.term_initialized(term_name)
-                       for term_name in self.formula.term_dict)
-
-        while not check_all_var_initialized():
-            for alstr, atomic in self.formula.atomic_dict.items():
-                pred_name = atomic.relation
-                head_name, tail_name = atomic.head.name, atomic.tail.name
-
-                if self.term_initialized(head_name) and not self.term_initialized(tail_name):
-                    head_emb = self.get_ent_emb(
-                        head_name
-                    )
-                    rel_emb = self.get_rel_emb(pred_name)
-
-                    tail_emb = self.nbp.estimate_tail_emb(head_emb, rel_emb)
-                    self.set_local_embedding(tail_name, tail_emb)
-
-                elif not self.term_initialized(head_name) and self.term_initialized(tail_name):
-                    tail_emb = self.get_ent_emb(
-                        tail_name
-                    )
-                    rel_emb = self.get_rel_emb(pred_name)
-
-                    head_emb = self.nbp.estimate_head_emb(tail_emb, rel_emb)
-                    # formula.set_var_local_embedding(head_name, head_emb)
-                    self.set_local_embedding(head_name, head_emb)
-
-                else:
-                    continue
-
         return
+
+    def estimate_variable_embeddings(self):
+        """
+        Actually, in beam search we don't need to estimate the "embedding"
+        Instead, we estimate the fuzzy set vector of each variable
+        """
+        if self.bfs_var_name_levels:
+            var_name_list = self.bfs_var_name_levels.pop(-1)
+            for var_name in var_name_list:
+                for atomic_name in self.formula.term_name2atomic_name_list[var_name]:
+                    counter = 0
+                    head, tail = self.formula.atomic_dict[atomic_name].get_terms():
+                    if head
+                                
+
+                    assert counter == 1, "The number of initialized terms should be 1"
+
+                    for term in self.formula.atomic_dict[atomic_name].get_terms():
+                        if term.name == var_name:
+                            continue
+                        elif 
+                            self._last_ground_free_var_emb[var_name] = self.term_local_emb_dict[term.name]
+

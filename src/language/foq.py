@@ -524,3 +524,32 @@ class EFO1Query:
         for pred_name in self.pred_grounded_relation_id_dict:
             relation_ids += self.pred_grounded_relation_id_dict[pred_name]
         return entity_ids, relation_ids
+
+    def get_bfs_variable_ordering(self, source_var_name='f'):
+        """
+        get variable ordering by a topological sort
+        """
+        visited_vars = set(source_var_name)
+        var_name_levels = [[(source_var_name, 0)]]
+        while True:
+            for var_name, order in var_name_levels[-1]:
+                next_var_name_level = []
+                for atomic_name in self.term_name2atomic_name_list[var_name]:
+                    atomic = self.atomic_dict[atomic_name]
+                    for term in atomic.get_terms():
+                        if term.state == Term.SYMBOL:
+                            continue
+
+                        if term.name not in visited_vars:
+                            visited_vars.add(term.name)
+                        else:
+                            continue
+
+                        next_var_name_level.append((term.name, order + 1))
+
+            if len(next_var_name_level) == 0:
+                break
+            else:
+                var_name_levels.append(next_var_name_level)
+
+        return var_name_levels
