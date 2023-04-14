@@ -20,8 +20,7 @@ My conda environment could be found at `ENV1.yaml`
 ** This repo is under construction for usability. The key results for the paper can already be reproduced. **
 
 Todo features:
-- [x] Implement CQD CO
-- [ ] Implement CQD BEAM
+- [x] Implement CQD CO Extended, CQD(E) in the paper
 - [ ] Introduce several ways to train KGE checkpoints with released repositories, which can be backbones for LMPNN.
 
 ## Preparation
