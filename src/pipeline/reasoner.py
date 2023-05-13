@@ -152,7 +152,7 @@ class Reasoner:
             else:
                 tail_emb = self.get_ent_emb(tail_name, begin_index, end_index)
 
-            pred_name = formula.name
+            pred_name = formula.relation
             rel_emb = self.get_rel_emb(pred_name, begin_index, end_index)
 
             batch_score = self.nbp.embedding_score(head_emb, rel_emb, tail_emb)

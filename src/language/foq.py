@@ -500,7 +500,7 @@ class EFO1Query:
                 self.get_term_grounded_entity_id_list(k))
 
         for k in self.atomic_dict:
-            pred_name = self.atomic_dict[k].name
+            pred_name = self.atomic_dict[k].relation
             assert num_instances == len(
                 self.get_pred_grounded_relation_id_list(pred_name))
 
