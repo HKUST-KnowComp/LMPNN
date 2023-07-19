@@ -7,6 +7,29 @@ see the [arXiv version](https://arxiv.org/abs/2301.08859) and the [OpenReview ve
 
 In this documentation, we detail how to reproduce the results in the paper based on existing checkpoints released by other researchers.
 
+- [Logical Message Passing Networks with One-hop Inference on Atomic Formula](#logical-message-passing-networks-with-one-hop-inference-on-atomic-formula)
+  - [Requirement of this repository](#requirement-of-this-repository)
+  - [Version](#version)
+  - [Preparation](#preparation)
+    - [(A) Prepare the dataset](#a-prepare-the-dataset)
+    - [(B1) Pretrain KGE checkpoints with external submodules](#b1-pretrain-kge-checkpoints-with-external-submodules)
+      - [Choice 1: Pretrain with uma-pi1/kge](#choice-1-pretrain-with-uma-pi1kge)
+        - [Step 0: Prepare the environment and config](#step-0-prepare-the-environment-and-config)
+        - [Step 1: Prepare the dataset](#step-1-prepare-the-dataset)
+        - [Step 2: Train the checkpoint](#step-2-train-the-checkpoint)
+      - [Choice 2: Pretrain with facebookresearch/ssl-relation-prediction](#choice-2-pretrain-with-facebookresearchssl-relation-prediction)
+        - [Step 0: Prepare the environment](#step-0-prepare-the-environment)
+        - [Step 1: Prepare the dataset](#step-1-prepare-the-dataset-1)
+        - [Step 2: Train the checkpoint](#step-2-train-the-checkpoint-1)
+    - [(B2) Convert pretrained KGE checkpoints into the acceptable format](#b2-convert-pretrained-kge-checkpoints-into-the-acceptable-format)
+      - [Sources 1. uclnlp/cqd](#sources-1-uclnlpcqd)
+  - [Train LMPNN](#train-lmpnn)
+  - [Answering Existential First Order (EFO) queries](#answering-existential-first-order-efo-queries)
+  - [Summarize the results from log files](#summarize-the-results-from-log-files)
+    - [old results](#old-results)
+  - [Citing this paper](#citing-this-paper)
+
+
 ## Requirement of this repository
 - pytorch
 - jupyter
@@ -17,6 +40,9 @@ Requirement of other submodules will be discussed accordingly.
 My conda environment could be found at `ENV1.yaml`
 
 ## Version
+
+1. Update 2023/07/20. We fix the non-freezed KG embedding issue before the commit id e83a95a. New version fixes the KG embedding and is now fully consistent as the paper.
+
 ** This repo is under construction for usability. The key results for the paper can already be reproduced. **
 
 Todo features:
@@ -252,6 +278,7 @@ python train_lmpnn.py \
 
 ## Summarize the results from log files
 
+
 We use script `read_eval_from_log.py` to summarize the results from the log file.
 
 For example, the results on FB15k-237 in file `log/FB15k-237/pretrain_complex1000-default/output.log` can be summarized by the following piece of code.
@@ -259,8 +286,14 @@ For example, the results on FB15k-237 in file `log/FB15k-237/pretrain_complex100
 python3 read_eval_from_log.py --log_file log/FB15k-237/pretrain_complex1000-default/output.log
 ```
 
-
 Then the code will output the markdown table of the trajectory over valid and test set.
+
+
+
+<details>
+<summary> Results from versions before e83a95a are obtained from the training process where both the KG embedding and the MLP is trainable, which is an accidental mistake and NOT what proposed in the paper. The results with trainable KGE appear to be weaker than those with freezed KGE (proposed in the paper). Click to see the sample output trajectory of trainable KGE (wrong implementation of LMPNN)</summary>
+
+### old results
 
 For FB15k-237, a possible output trajectory could be like
 
@@ -312,7 +345,7 @@ For FB15k-237, a possible output trajectory could be like
 | (95, 'mrr')  | 44.8846 | 13.665  | 11.0756  | 35.1892 | 49.8396 | 23.0492 | 17.7944 | 13.3872 | 11.0303  | 7.66467 | 12.8382 | 8.39552 | 4.71225 | 4.3251  |     24.435  |    7.58714 |
 | (100, 'mrr') | 44.9048 | 13.6668 | 11.1112  | 35.2322 | 49.6774 | 22.859  | 17.8386 | 13.3444 | 11.0184  | 7.70513 | 12.857  | 8.45513 | 4.74044 | 4.26359 |     24.4059 |    7.60425 |
 
-For FB15k dataset, a possible training trajectory could be 
+For FB15k dataset, a possible training trajectory could be
 
 |Validation set |      1p |      2p |      3p |      2i |      3i |      pi |      ip |      2u |      up |     2in |     3in |     inp |      pin |      pni |   epfo mean |   Neg mean |
 |:-------------|--------:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|---------:|---------:|------------:|-----------:|
@@ -360,7 +393,7 @@ For FB15k dataset, a possible training trajectory could be
 | (95, 'mrr')  | 84.6069 | 41.7902 | 31.7677 | 67.8683 | 76.2519 | 47.8811 | 43.8575 | 34.5829 | 34.5235 | 25.4988 | 26.8536 | 15.815  | 11.0273  | 15.3696 |     51.4589 |    18.9129 |
 | (100, 'mrr') | 84.5962 | 41.8732 | 31.7129 | 67.8121 | 76.2344 | 47.7903 | 43.8667 | 34.6276 | 34.5437 | 25.6159 | 26.8515 | 15.8538 | 11.0693  | 15.3367 |     51.4508 |    18.9455 |
 
-For NELL dataset, a possible training trajectory could be 
+For NELL dataset, a possible training trajectory could be
 
 | Validation set |      1p |      2p |      3p |      2i |      3i |      pi |      ip |      2u |      up |     2in |     3in |     inp |     pin |     pni |   epfo mean |   Neg mean |
 |:-------------|--------:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|------------:|-----------:|
@@ -407,6 +440,8 @@ For NELL dataset, a possible training trajectory could be
 | (90, 'mrr')  | 58.3807 | 22.1138 | 17.7913 | 39.807  | 50.0646 | 27.2867 | 23.715  | 16.2238 | 15.7525 | 7.8916  | 10.5542 | 12.402  | 4.04165 | 4.60234 |     30.1262 |    7.89835 |
 | (95, 'mrr')  | 58.3548 | 21.9695 | 17.8834 | 39.8838 | 50.0381 | 27.0707 | 23.5618 | 16.1987 | 15.5789 | 7.87723 | 10.5658 | 12.3075 | 4.06027 | 4.62175 |     30.06   |    7.88651 |
 | (100, 'mrr') | 58.2411 | 22.1544 | 17.8277 | 39.9782 | 50.2438 | 27.1149 | 23.6624 | 16.2382 | 15.6717 | 7.91782 | 10.6511 | 12.4242 | 3.99122 | 4.63306 |     30.1258 |    7.92348 |
+
+</details>
 
 ## Citing this paper
 

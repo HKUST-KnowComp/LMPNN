@@ -329,6 +329,9 @@ if __name__ == "__main__":
     nbp.to(args.device)
     print(f"model loaded from {args.checkpoint_path}")
 
+    for param in nbp.parameters():
+        param.requires_grad = False
+
     # * load the dataset, by default, we load the dataset to test
     print("loading dataset")
     if args.eval_queries:
@@ -395,13 +398,14 @@ if __name__ == "__main__":
         lgnn_layer.to(nbp.device)
 
         reasoner = LMPNNReasoner(nbp, lgnn_layer, depth_shift=args.depth_shift)
-        print(lgnn_layer)
+        print("Is entity embedding optimized ?", lgnn_layer.nbp._entity_embedding.weight.requires_grad)
+        print("Is relation embedding optimized ?", lgnn_layer.nbp._relation_embedding.weight.requires_grad)
+
         optimizer_estimator = getattr(torch.optim, args.optimizer)(
             lgnn_layer.parameters(),
             lr=args.learning_rate,
             weight_decay=args.weight_decay)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer_estimator, 50, 0.1)
-
 
         for e in range(1, 1+args.epoch):
             train_LMPNN(f"epoch {e}", train_dataloader, nbp, reasoner, optimizer_estimator, args)
