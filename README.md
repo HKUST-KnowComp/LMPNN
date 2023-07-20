@@ -26,7 +26,7 @@ In this documentation, we detail how to reproduce the results in the paper based
   - [Train LMPNN](#train-lmpnn)
   - [Answering Existential First Order (EFO) queries](#answering-existential-first-order-efo-queries)
   - [Summarize the results from log files](#summarize-the-results-from-log-files)
-    - [Sample result summaries for LMPNN with dataset provided above.](#sample-result-summaries-for-lmpnn-with-dataset-provided-above)
+    - [Sample training trajectories of LMPNN with command provided above.](#sample-training-trajectories-of-lmpnn-with-command-provided-above)
     - [old results](#old-results)
   - [Citing this paper](#citing-this-paper)
 
@@ -289,7 +289,7 @@ python3 read_eval_from_log.py --log_file log/FB15k-237/pretrain_complex1000-defa
 
 Then the code will output the markdown table of the trajectory over valid and test set.
 
-### Sample result summaries for LMPNN with dataset provided above.
+### Sample training trajectories of LMPNN with command provided above.
 
 For FB15k-237, a possible output trajectory could be like
 
